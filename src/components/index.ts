@@ -12,3 +12,5 @@ export { UrgentBanner } from './UrgentBanner';
 export { ActionButton, QuickActions } from './ActionButton';
 export { Avatar } from './Avatar';
 export { Header } from './Header';
+export { StatCard } from './StatCard';
+export { ResolveComplaintModal } from './ResolveComplaintModal';

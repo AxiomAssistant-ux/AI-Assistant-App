@@ -77,6 +77,10 @@ export interface Complaint {
   complaint_severity: SeverityLevel;
   status: ComplaintStatus;
   notes: ComplaintNote[];
+  compensation?: string;
+  resolution_notes?: string;
+  resolved_at?: string;
+  resolved_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +160,11 @@ export interface UpdateComplaintRequest {
   status?: ComplaintStatus;
 }
 
+export interface ResolveComplaintRequest {
+  compensation: string;
+  resolution_notes?: string;
+}
+
 export interface UpdateActionItemRequest {
   status?: ActionItemStatus;
 }
@@ -173,6 +182,33 @@ export interface ApiError {
   message: string;
   code: string;
   status: number;
+}
+
+// Dashboard & Analytics types
+export interface DashboardResponse {
+  storeName: string;
+  storeNumber: string;
+  todaysCalls: number;
+  pendingComplaints: number;
+  urgentActionItems: number;
+  overdueActionItems: number;
+  totalCallsThisWeek: number;
+  complaintsResolvedToday: number;
+  avgResolutionTime: string;
+}
+
+export interface AnalyticsResponse {
+  callsOverTime: { date: string; count: number }[];
+  complaintsByStatus: { status: string; count: number }[];
+  totalCalls: number;
+  peakHour: string;
+  totalComplaints: number;
+  urgentActionsCount: number;
+  avgHandlingTime: string;
+  resolutionRate: number;
+  callsTrend?: number;
+  complaintsTrend?: number;
+  resolutionTrend?: number;
 }
 
 // ============================================

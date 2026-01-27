@@ -2,12 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { UrgentStack } from './UrgentStack';
+import { HomeStack } from './HomeStack';
 import { ComplaintsStack } from './ComplaintsStack';
 import { ActionItemsStack } from './ActionItemsStack';
-import { NotificationsStack } from './NotificationsStack';
-import { SettingsStack } from './SettingsStack';
-import { useUrgentStore, useNotificationsStore } from '../stores';
+import { AnalyticsStack } from './AnalyticsStack';
+import { useHomeStore, useComplaintsStore, useActionItemsStore } from '../stores';
 import { MainTabParamList } from './types';
 import { colors, fontSizes, fontWeights, spacing } from '../theme';
 
@@ -28,11 +27,11 @@ const TabBadge: React.FC<TabBadgeProps> = ({ count }) => {
 };
 
 export const MainTabNavigator: React.FC = () => {
-  const getUrgentCount = useUrgentStore((state) => state.getUrgentCount);
-  const getUnreadCount = useNotificationsStore((state) => state.getUnreadCount);
+  const stats = useHomeStore((state) => state.stats);
 
-  const urgentCount = getUrgentCount();
-  const unreadNotifications = getUnreadCount();
+  // Calculate pending complaints count
+  const pendingComplaints = stats?.pendingComplaints ?? 0;
+  const urgentActions = stats?.urgentActionItems ?? 0;
 
   return (
     <Tab.Navigator
@@ -46,20 +45,17 @@ export const MainTabNavigator: React.FC = () => {
       }}
     >
       <Tab.Screen
-        name="Urgent"
-        component={UrgentStack}
+        name="Home"
+        component={HomeStack}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <View>
-              <Ionicons
-                name={focused ? 'alert-circle' : 'alert-circle-outline'}
-                size={size}
-                color={urgentCount > 0 ? colors.error[500] : color}
-              />
-              <TabBadge count={urgentCount} />
-            </View>
+            <Ionicons
+              name={focused ? 'home' : 'home-outline'}
+              size={size}
+              color={color}
+            />
           ),
-          tabBarLabel: 'Urgent',
+          tabBarLabel: 'Home',
         }}
       />
       <Tab.Screen
@@ -67,58 +63,47 @@ export const MainTabNavigator: React.FC = () => {
         component={ComplaintsStack}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-              size={size}
-              color={color}
-            />
+            <View>
+              <Ionicons
+                name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
+                size={size}
+                color={pendingComplaints > 0 ? colors.warning[500] : color}
+              />
+              <TabBadge count={pendingComplaints} />
+            </View>
           ),
           tabBarLabel: 'Complaints',
         }}
       />
       <Tab.Screen
-        name="Tasks"
+        name="Actions"
         component={ActionItemsStack}
-        options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'checkbox' : 'checkbox-outline'}
-              size={size}
-              color={color}
-            />
-          ),
-          tabBarLabel: 'Tasks',
-        }}
-      />
-      <Tab.Screen
-        name="Notifications"
-        component={NotificationsStack}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
             <View>
               <Ionicons
-                name={focused ? 'notifications' : 'notifications-outline'}
+                name={focused ? 'flash' : 'flash-outline'}
                 size={size}
-                color={color}
+                color={urgentActions > 0 ? colors.error[500] : color}
               />
-              <TabBadge count={unreadNotifications} />
+              <TabBadge count={urgentActions} />
             </View>
           ),
-          tabBarLabel: 'Notifications',
+          tabBarLabel: 'Actions',
         }}
       />
       <Tab.Screen
-        name="Settings"
-        component={SettingsStack}
+        name="Analytics"
+        component={AnalyticsStack}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
-              name={focused ? 'settings' : 'settings-outline'}
+              name={focused ? 'analytics' : 'analytics-outline'}
               size={size}
               color={color}
             />
           ),
-          tabBarLabel: 'Settings',
+          tabBarLabel: 'Analytics',
         }}
       />
     </Tab.Navigator>
@@ -132,7 +117,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border.light,
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
-    height: 60,
+    height: 65,
   },
   tabBarLabel: {
     fontSize: fontSizes.xs,

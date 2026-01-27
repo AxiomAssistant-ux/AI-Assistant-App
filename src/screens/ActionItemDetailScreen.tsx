@@ -230,6 +230,7 @@ export const ActionItemDetailScreen: React.FC = () => {
               variant="assign"
               onPress={handleAssign}
               loading={loadingAction === 'assign'}
+              disabled={!!loadingAction && loadingAction !== 'assign'}
               style={styles.actionButton}
             />
           </View>
@@ -242,6 +243,7 @@ export const ActionItemDetailScreen: React.FC = () => {
                 variant="progress"
                 onPress={() => handleStatusChange('in_progress')}
                 loading={loadingAction === 'in_progress'}
+                disabled={!!loadingAction && loadingAction !== 'in_progress'}
                 style={styles.actionButton}
               />
             )}
@@ -252,6 +254,7 @@ export const ActionItemDetailScreen: React.FC = () => {
                 variant="resolve"
                 onPress={() => handleStatusChange('completed')}
                 loading={loadingAction === 'completed'}
+                disabled={!!loadingAction && loadingAction !== 'completed'}
                 style={styles.actionButton}
               />
             )}
@@ -265,6 +268,7 @@ export const ActionItemDetailScreen: React.FC = () => {
                 variant="default"
                 onPress={() => handleStatusChange('dismissed')}
                 loading={loadingAction === 'dismissed'}
+                disabled={!!loadingAction && loadingAction !== 'dismissed'}
                 style={styles.actionButton}
               />
             </View>
@@ -304,7 +308,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.error[200],
+    borderColor: colors.error[100],
     marginBottom: spacing.md,
   },
   overdueText: {

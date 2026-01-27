@@ -6,7 +6,6 @@ import {
   ScrollView,
   RefreshControl,
   Linking,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -26,6 +25,7 @@ import {
   TextArea,
   UrgentBanner,
 } from '../components';
+import { ResolveComplaintModal, ResolveData } from '../components/ResolveComplaintModal';
 import { ComplaintStatus } from '../lib/types';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
@@ -45,6 +45,7 @@ export const ComplaintDetailScreen: React.FC = () => {
     updateComplaintStatus,
     assignComplaintToMe,
     addNote,
+    resolveComplaint,
     clearSelectedComplaint,
   } = useComplaintsStore();
 
@@ -54,6 +55,8 @@ export const ComplaintDetailScreen: React.FC = () => {
   const [noteText, setNoteText] = useState('');
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
 
   useEffect(() => {
     fetchComplaint(id);
@@ -97,6 +100,24 @@ export const ComplaintDetailScreen: React.FC = () => {
     }
   };
 
+  const handleResolve = async (data: ResolveData) => {
+    setIsResolving(true);
+    try {
+      const updated = await resolveComplaint(id, {
+        compensation: data.compensation,
+        resolution_notes: data.resolutionNotes,
+      });
+      updateComplaintOptimistic(updated);
+      setShowResolveModal(false);
+      showSuccess('Complaint resolved successfully');
+    } catch (error) {
+      showError('Failed to resolve complaint');
+      throw error;
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
 
@@ -129,6 +150,8 @@ export const ComplaintDetailScreen: React.FC = () => {
   const isUrgent =
     (complaint.complaint_severity === 'high' || complaint.complaint_severity === 'critical') &&
     (complaint.status === 'pending' || complaint.status === 'in_progress');
+
+  const isResolved = complaint.status === 'resolved';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -167,6 +190,42 @@ export const ComplaintDetailScreen: React.FC = () => {
             <StatusChip status={complaint.status} />
           </View>
 
+          {/* Resolution Info (if resolved) */}
+          {isResolved && (
+            <Card style={[styles.section, styles.resolvedCard]}>
+              <View style={styles.resolvedHeader}>
+                <Ionicons name="checkmark-circle" size={24} color={colors.success[500]} />
+                <Text style={styles.resolvedTitle}>Resolved</Text>
+              </View>
+              {complaint.compensation && (
+                <View style={styles.resolvedRow}>
+                  <Text style={styles.resolvedLabel}>Compensation:</Text>
+                  <Text style={styles.resolvedValue}>{complaint.compensation}</Text>
+                </View>
+              )}
+              {complaint.resolved_by && (
+                <View style={styles.resolvedRow}>
+                  <Text style={styles.resolvedLabel}>Resolved by:</Text>
+                  <Text style={styles.resolvedValue}>{complaint.resolved_by}</Text>
+                </View>
+              )}
+              {complaint.resolved_at && (
+                <View style={styles.resolvedRow}>
+                  <Text style={styles.resolvedLabel}>Resolved at:</Text>
+                  <Text style={styles.resolvedValue}>
+                    {new Date(complaint.resolved_at).toLocaleString()}
+                  </Text>
+                </View>
+              )}
+              {complaint.resolution_notes && (
+                <View style={styles.resolvedNotes}>
+                  <Text style={styles.resolvedLabel}>Resolution Notes:</Text>
+                  <Text style={styles.resolvedNotesText}>{complaint.resolution_notes}</Text>
+                </View>
+              )}
+            </Card>
+          )}
+
           {/* Type & Description */}
           <Card style={styles.section}>
             <Text style={styles.complaintType}>{complaint.complaint_type}</Text>
@@ -203,64 +262,90 @@ export const ComplaintDetailScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Quick Actions */}
-          <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.actionsGrid}>
-              <ActionButton
-                label="Call Customer"
-                icon="call-outline"
-                variant="call"
-                onPress={handleCall}
-                style={styles.actionButton}
-              />
-              <ActionButton
-                label="Assign to Me"
-                icon="person-add-outline"
-                variant="assign"
-                onPress={handleAssign}
-                loading={loadingAction === 'assign'}
-                style={styles.actionButton}
-              />
-            </View>
-            <View style={styles.actionsGrid}>
-              {complaint.status === 'pending' && (
+          {/* Quick Actions - Only show if not resolved */}
+          {!isResolved && (
+            <Card style={styles.section}>
+              <Text style={styles.sectionTitle}>Quick Actions</Text>
+              <View style={styles.actionsGrid}>
                 <ActionButton
-                  label="Mark In Progress"
-                  icon="play-circle-outline"
-                  variant="progress"
-                  onPress={() => handleStatusChange('in_progress')}
-                  loading={loadingAction === 'in_progress'}
+                  label="Call Customer"
+                  icon="call-outline"
+                  variant="call"
+                  onPress={handleCall}
+                  disabled={!!loadingAction}
                   style={styles.actionButton}
                 />
-              )}
-              {(complaint.status === 'pending' || complaint.status === 'in_progress') && (
                 <ActionButton
-                  label="Resolve"
-                  icon="checkmark-circle-outline"
-                  variant="resolve"
-                  onPress={() => handleStatusChange('resolved')}
-                  loading={loadingAction === 'resolved'}
+                  label="Assign to Me"
+                  icon="person-add-outline"
+                  variant="assign"
+                  onPress={handleAssign}
+                  loading={loadingAction === 'assign'}
+                  disabled={!!loadingAction && loadingAction !== 'assign'}
                   style={styles.actionButton}
                 />
-              )}
-            </View>
-          </Card>
+              </View>
+              <View style={styles.actionsGrid}>
+                {complaint.status === 'pending' && (
+                  <ActionButton
+                    label="Mark In Progress"
+                    icon="play-circle-outline"
+                    variant="progress"
+                    onPress={() => handleStatusChange('in_progress')}
+                    loading={loadingAction === 'in_progress'}
+                    disabled={!!loadingAction && loadingAction !== 'in_progress'}
+                    style={styles.actionButton}
+                  />
+                )}
+                {(complaint.status === 'pending' || complaint.status === 'in_progress') && (
+                  <ActionButton
+                    label="Resolve"
+                    icon="checkmark-circle-outline"
+                    variant="resolve"
+                    onPress={() => setShowResolveModal(true)}
+                    disabled={!!loadingAction}
+                    style={styles.actionButton}
+                  />
+                )}
+              </View>
+            </Card>
+          )}
+
+          {/* Read-only actions for resolved complaints */}
+          {isResolved && (
+            <Card style={styles.section}>
+              <Text style={styles.sectionTitle}>Actions</Text>
+              <View style={styles.actionsGrid}>
+                <ActionButton
+                  label="Call Customer"
+                  icon="call-outline"
+                  variant="call"
+                  onPress={handleCall}
+                  style={styles.actionButton}
+                />
+              </View>
+              <Text style={styles.readOnlyNote}>
+                This complaint is resolved. Status changes are no longer available.
+              </Text>
+            </Card>
+          )}
 
           {/* Notes Section */}
           <Card style={styles.section}>
             <View style={styles.notesHeader}>
               <Text style={styles.sectionTitle}>Notes</Text>
-              <Button
-                label={showNoteInput ? 'Cancel' : 'Add Note'}
-                variant={showNoteInput ? 'ghost' : 'outline'}
-                size="sm"
-                icon={showNoteInput ? 'close' : 'add'}
-                onPress={() => setShowNoteInput(!showNoteInput)}
-              />
+              {!isResolved && (
+                <Button
+                  label={showNoteInput ? 'Cancel' : 'Add Note'}
+                  variant={showNoteInput ? 'ghost' : 'outline'}
+                  size="sm"
+                  icon={showNoteInput ? 'close' : 'add'}
+                  onPress={() => setShowNoteInput(!showNoteInput)}
+                />
+              )}
             </View>
 
-            {showNoteInput && (
+            {showNoteInput && !isResolved && (
               <View style={styles.noteInputContainer}>
                 <TextArea
                   placeholder="Enter your note..."
@@ -305,6 +390,15 @@ export const ComplaintDetailScreen: React.FC = () => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Resolve Modal */}
+      <ResolveComplaintModal
+        visible={showResolveModal}
+        onClose={() => setShowResolveModal(false)}
+        onResolve={handleResolve}
+        isLoading={isResolving}
+        complaintType={complaint.complaint_type}
+      />
     </SafeAreaView>
   );
 };
@@ -354,6 +448,52 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.base,
     color: colors.text.secondary,
     lineHeight: fontSizes.base * 1.6,
+  },
+  resolvedCard: {
+    backgroundColor: colors.success[50],
+    borderWidth: 1,
+    borderColor: colors.success[100],
+  },
+  resolvedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  resolvedTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.semibold,
+    color: colors.success[700],
+  },
+  resolvedRow: {
+    flexDirection: 'row',
+    marginBottom: spacing.sm,
+  },
+  resolvedLabel: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    width: 110,
+  },
+  resolvedValue: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.medium,
+    color: colors.text.primary,
+    flex: 1,
+  },
+  resolvedNotes: {
+    marginTop: spacing.sm,
+  },
+  resolvedNotesText: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  readOnlyNote: {
+    fontSize: fontSizes.sm,
+    color: colors.text.muted,
+    fontStyle: 'italic',
+    marginTop: spacing.sm,
   },
   customerRow: {
     flexDirection: 'row',

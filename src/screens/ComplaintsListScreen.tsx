@@ -234,6 +234,10 @@ export const ComplaintsListScreen: React.FC = () => {
     );
   }
 
+  const handleScanQR = () => {
+    navigation.navigate('QRScanner');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
@@ -264,6 +268,11 @@ export const ComplaintsListScreen: React.FC = () => {
           />
         }
       />
+
+      {/* QR Scan FAB */}
+      <TouchableOpacity style={styles.fab} onPress={handleScanQR} activeOpacity={0.8}>
+        <Ionicons name="qr-code-outline" size={24} color={colors.white} />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -411,6 +420,22 @@ const styles = StyleSheet.create({
   },
   loadingMore: {
     paddingVertical: spacing.lg,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: spacing.xl,
+    right: spacing.lg,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary[600],
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
 

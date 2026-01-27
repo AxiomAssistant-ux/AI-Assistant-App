@@ -5,16 +5,31 @@ export type AuthStackParamList = {
   Login: undefined;
 };
 
-export type ComplaintsStackParamList = {
-  ComplaintsList: undefined;
+export type HomeStackParamList = {
+  HomeMain: undefined;
   ComplaintDetail: { id: string };
+  ActionItemDetail: { id: string };
+  QRScanner: undefined;
+  Notifications: undefined;
+  Settings: undefined;
+};
+
+export type ComplaintsStackParamList = {
+  ComplaintsList: { filterStatus?: string } | undefined;
+  ComplaintDetail: { id: string };
+  QRScanner: undefined;
 };
 
 export type ActionItemsStackParamList = {
-  ActionItemsList: undefined;
+  ActionItemsList: { filterUrgency?: string; filterOverdue?: boolean } | undefined;
   ActionItemDetail: { id: string };
 };
 
+export type AnalyticsStackParamList = {
+  AnalyticsMain: undefined;
+};
+
+// Legacy stacks (kept for reference, can be removed later)
 export type UrgentStackParamList = {
   UrgentHome: undefined;
   ComplaintDetail: { id: string };
@@ -31,13 +46,12 @@ export type SettingsStackParamList = {
   SettingsHome: undefined;
 };
 
-// Tab navigator
+// Tab navigator - New order: Home, Complaints, Actions, Analytics
 export type MainTabParamList = {
-  Urgent: NavigatorScreenParams<UrgentStackParamList>;
+  Home: NavigatorScreenParams<HomeStackParamList>;
   Complaints: NavigatorScreenParams<ComplaintsStackParamList>;
-  Tasks: NavigatorScreenParams<ActionItemsStackParamList>;
-  Notifications: NavigatorScreenParams<NotificationsStackParamList>;
-  Settings: NavigatorScreenParams<SettingsStackParamList>;
+  Actions: NavigatorScreenParams<ActionItemsStackParamList>;
+  Analytics: NavigatorScreenParams<AnalyticsStackParamList>;
 };
 
 // Root navigator

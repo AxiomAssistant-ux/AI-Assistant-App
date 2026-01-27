@@ -16,6 +16,9 @@ import {
   UpdateActionItemRequest,
   AddNoteRequest,
   RegisterDeviceRequest,
+  DashboardResponse,
+  AnalyticsResponse,
+  ResolveComplaintRequest,
 } from './types';
 import * as mockServer from './mockServer';
 
@@ -137,6 +140,14 @@ export const api = {
     return response.data;
   },
 
+  async resolveComplaint(id: string, data: ResolveComplaintRequest): Promise<Complaint> {
+    if (config.USE_MOCK) {
+      return mockServer.mockResolveComplaint(id, data);
+    }
+    const response = await axiosInstance.post<Complaint>(`/complaints/${id}/resolve`, data);
+    return response.data;
+  },
+
   // ==========================================
   // ACTION ITEMS
   // ==========================================
@@ -208,6 +219,28 @@ export const api = {
       return mockServer.mockRegisterDevice();
     }
     const response = await axiosInstance.post<{ success: boolean }>('/devices/register', data);
+    return response.data;
+  },
+
+  // ==========================================
+  // DASHBOARD
+  // ==========================================
+  async getDashboard(): Promise<DashboardResponse> {
+    if (config.USE_MOCK) {
+      return mockServer.mockGetDashboard();
+    }
+    const response = await axiosInstance.get<DashboardResponse>('/dashboard');
+    return response.data;
+  },
+
+  // ==========================================
+  // ANALYTICS
+  // ==========================================
+  async getAnalytics(): Promise<AnalyticsResponse> {
+    if (config.USE_MOCK) {
+      return mockServer.mockGetAnalytics();
+    }
+    const response = await axiosInstance.get<AnalyticsResponse>('/analytics');
     return response.data;
   },
 };

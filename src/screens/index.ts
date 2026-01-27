@@ -7,3 +7,6 @@ export { ActionItemsListScreen } from './ActionItemsListScreen';
 export { ActionItemDetailScreen } from './ActionItemDetailScreen';
 export { NotificationsScreen } from './NotificationsScreen';
 export { SettingsScreen } from './SettingsScreen';
+export { HomeScreen } from './HomeScreen';
+export { AnalyticsScreen } from './AnalyticsScreen';
+export { QRScannerScreen } from './QRScannerScreen';

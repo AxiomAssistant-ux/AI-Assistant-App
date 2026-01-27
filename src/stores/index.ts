@@ -4,3 +4,4 @@ export { useUrgentStore } from './urgentStore';
 export { useComplaintsStore } from './complaintsStore';
 export { useActionItemsStore } from './actionItemsStore';
 export { useNotificationsStore } from './notificationsStore';
+export { useHomeStore } from './homeStore';

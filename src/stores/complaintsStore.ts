@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Complaint, ComplaintStatus, SeverityLevel, ComplaintsFilter } from '../lib/types';
+import { Complaint, ComplaintStatus, SeverityLevel, ComplaintsFilter, ResolveComplaintRequest } from '../lib/types';
 import { api } from '../lib/api';
 
 interface ComplaintsState {
@@ -26,6 +26,7 @@ interface ComplaintsState {
   updateComplaintStatus: (id: string, status: ComplaintStatus) => Promise<Complaint>;
   assignComplaintToMe: (id: string) => Promise<Complaint>;
   addNote: (id: string, content: string) => Promise<Complaint>;
+  resolveComplaint: (id: string, data: ResolveComplaintRequest) => Promise<Complaint>;
   updateComplaintOptimistic: (complaint: Complaint) => void;
   clearSelectedComplaint: () => void;
 }
@@ -159,6 +160,16 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
   addNote: async (id: string, content: string) => {
     try {
       const complaint = await api.addComplaintNote(id, { content });
+      get().updateComplaintOptimistic(complaint);
+      return complaint;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  resolveComplaint: async (id: string, data: ResolveComplaintRequest) => {
+    try {
+      const complaint = await api.resolveComplaint(id, data);
       get().updateComplaintOptimistic(complaint);
       return complaint;
     } catch (error) {

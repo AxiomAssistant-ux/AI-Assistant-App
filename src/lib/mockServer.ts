@@ -13,6 +13,9 @@ import {
   UpdateActionItemRequest,
   AddNoteRequest,
   ComplaintNote,
+  DashboardResponse,
+  AnalyticsResponse,
+  ResolveComplaintRequest,
 } from './types';
 import {
   mockOrganization,
@@ -273,6 +276,52 @@ export const mockAddComplaintNote = async (
   return complaints[index];
 };
 
+export const mockResolveComplaint = async (
+  id: string,
+  data: ResolveComplaintRequest
+): Promise<Complaint> => {
+  await simulateLatency();
+
+  if (shouldError()) {
+    throw new Error('Failed to resolve complaint');
+  }
+
+  const index = complaints.findIndex(c => c._id === id);
+
+  if (index === -1) {
+    throw new Error('Complaint not found');
+  }
+
+  if (complaints[index].status === 'resolved') {
+    throw new Error('Complaint is already resolved');
+  }
+
+  const user = mockUsers.find(u => u._id === currentUserId) || mockUsers[0];
+  const now = new Date().toISOString();
+
+  // Add resolution note
+  const resolutionNote: ComplaintNote = {
+    _id: generateId(),
+    user_id: user._id,
+    user_name: user.name,
+    content: `Complaint resolved. Compensation: ${data.compensation}${data.resolution_notes ? `. Notes: ${data.resolution_notes}` : ''}`,
+    created_at: now,
+  };
+
+  complaints[index] = {
+    ...complaints[index],
+    status: 'resolved',
+    compensation: data.compensation,
+    resolution_notes: data.resolution_notes,
+    resolved_at: now,
+    resolved_by: user.name,
+    notes: [...complaints[index].notes, resolutionNote],
+    updated_at: now,
+  };
+
+  return complaints[index];
+};
+
 // ============================================
 // ACTION ITEMS ENDPOINTS
 // ============================================
@@ -430,6 +479,112 @@ export const mockRegisterDevice = async (): Promise<{ success: boolean }> => {
   await simulateLatency();
 
   return { success: true };
+};
+
+// ============================================
+// DASHBOARD
+// ============================================
+
+export const mockGetDashboard = async (): Promise<DashboardResponse> => {
+  await simulateLatency();
+
+  if (shouldError()) {
+    throw new Error('Failed to fetch dashboard');
+  }
+
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  // Count pending complaints
+  const pendingComplaints = complaints.filter(c => c.status === 'pending').length;
+
+  // Count urgent action items (high/critical and pending/in_progress)
+  const urgentActionItems = actionItems.filter(
+    a => (a.urgency === 'high' || a.urgency === 'critical') &&
+         (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  // Count overdue action items
+  const overdueActionItems = actionItems.filter(
+    a => new Date(a.due_at) < now &&
+         (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  // Count resolved today
+  const complaintsResolvedToday = complaints.filter(
+    c => c.status === 'resolved' && c.updated_at.startsWith(today)
+  ).length;
+
+  return {
+    storeName: 'Metro Retail Downtown',
+    storeNumber: '1042',
+    todaysCalls: Math.floor(Math.random() * 50) + 20,
+    pendingComplaints,
+    urgentActionItems,
+    overdueActionItems,
+    totalCallsThisWeek: Math.floor(Math.random() * 200) + 100,
+    complaintsResolvedToday,
+    avgResolutionTime: '2.4h',
+  };
+};
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+export const mockGetAnalytics = async (): Promise<AnalyticsResponse> => {
+  await simulateLatency();
+
+  if (shouldError()) {
+    throw new Error('Failed to fetch analytics');
+  }
+
+  // Generate calls over time for last 7 days
+  const callsOverTime = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    callsOverTime.push({
+      date: date.toISOString().split('T')[0],
+      count: Math.floor(Math.random() * 40) + 10,
+    });
+  }
+
+  // Count complaints by status
+  const pendingCount = complaints.filter(c => c.status === 'pending').length;
+  const inProgressCount = complaints.filter(c => c.status === 'in_progress').length;
+  const resolvedCount = complaints.filter(c => c.status === 'resolved').length;
+
+  const complaintsByStatus = [
+    { status: 'pending', count: pendingCount },
+    { status: 'in_progress', count: inProgressCount },
+    { status: 'resolved', count: resolvedCount },
+  ];
+
+  // Count urgent action items
+  const urgentActionsCount = actionItems.filter(
+    a => (a.urgency === 'high' || a.urgency === 'critical') &&
+         (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  // Generate random trend data (between -15% and +25%)
+  const callsTrend = Math.floor(Math.random() * 40) - 15;
+  const complaintsTrend = Math.floor(Math.random() * 30) - 20;
+  const resolutionTrend = Math.floor(Math.random() * 20) - 5;
+
+  return {
+    callsOverTime,
+    complaintsByStatus,
+    totalCalls: callsOverTime.reduce((sum, d) => sum + d.count, 0),
+    peakHour: '2:00 PM',
+    totalComplaints: complaints.length,
+    urgentActionsCount,
+    avgHandlingTime: '4.2 min',
+    resolutionRate: Math.floor((resolvedCount / complaints.length) * 100) || 72,
+    callsTrend,
+    complaintsTrend,
+    resolutionTrend,
+  };
 };
 
 // ============================================

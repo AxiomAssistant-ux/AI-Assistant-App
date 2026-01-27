@@ -3,6 +3,7 @@ import {
   View,
   StyleSheet,
   ViewStyle,
+  StyleProp,
   TouchableOpacity,
   TouchableOpacityProps,
 } from 'react-native';
@@ -10,7 +11,7 @@ import { colors, spacing, borderRadius, cardShadow } from '../theme';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   variant?: 'default' | 'outlined' | 'elevated';
   onPress?: () => void;
   disabled?: boolean;
