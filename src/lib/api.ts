@@ -34,29 +34,71 @@ const axiosInstance: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor - add auth token
+// Request interceptor - add auth token and logging
 axiosInstance.interceptors.request.use(
   async (requestConfig: InternalAxiosRequestConfig) => {
     const token = await storage.getToken();
     if (token && requestConfig.headers) {
       requestConfig.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Development logging
+    if (__DEV__) {
+      console.log('📤 API Request:', {
+        method: requestConfig.method?.toUpperCase(),
+        url: requestConfig.url,
+        params: requestConfig.params,
+        data: requestConfig.data,
+      });
+    }
+
     return requestConfig;
   },
   (error: AxiosError) => {
+    if (__DEV__) {
+      console.error('❌ Request Error:', error);
+    }
     return Promise.reject(error);
   }
 );
 
-// Response interceptor - handle errors
+// Response interceptor - handle errors and logging
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Development logging
+    if (__DEV__) {
+      console.log('📥 API Response:', {
+        url: response.config.url,
+        status: response.status,
+        data: response.data,
+      });
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
       // Token expired or invalid - clear storage
       await storage.removeToken();
     }
-    return Promise.reject(error);
+
+    // Development logging
+    if (__DEV__) {
+      console.error('❌ Response Error:', {
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+
+    // Extract error message - support both 'message' and 'detail' fields
+    const errorData = error.response?.data as any;
+    const message =
+      errorData?.message ||
+      errorData?.detail ||
+      error.message ||
+      'An error occurred';
+
+    return Promise.reject(new Error(message));
   }
 );
 
@@ -72,7 +114,17 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockLogin(data);
     }
-    const response = await axiosInstance.post<LoginResponse>('/auth/login', data);
+    const response = await axiosInstance.post<LoginResponse>('/auth/org/login', data);
+
+    // Validate store account
+    if (!response.data.user.is_store_account) {
+      throw new Error('This account is not authorized for mobile access');
+    }
+
+    if (!response.data.user.store_location_id) {
+      throw new Error('No store location assigned to this account');
+    }
+
     return response.data;
   },
 
@@ -229,18 +281,68 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetDashboard();
     }
-    const response = await axiosInstance.get<DashboardResponse>('/dashboard');
-    return response.data;
+
+    // Backend response structure
+    interface BackendDashboardResponse {
+      store_info: {
+        store_name: string;
+        store_number: string;
+        store_location: string;
+      };
+      today_calls: number;
+      date_range: {
+        start_date: string;
+        end_date: string;
+        days: number;
+      };
+      calls: {
+        total: number;
+        by_date: Record<string, number>;
+        by_hour: Record<number, number>;
+        peak_hour: number | null;
+      };
+      pending_counts: {
+        complaints: number;
+        urgent_actions: number;
+        overdue_actions: number;
+      };
+      resolution_stats: {
+        resolved_today: number;
+        avg_resolution_time_hours: number;
+      };
+    }
+
+    const response = await axiosInstance.get<BackendDashboardResponse>(
+      '/mobile/analytics/dashboard',
+      { params: { days: 7 } }
+    );
+
+    // Map backend response to frontend format
+    const data = response.data;
+    return {
+      storeName: data.store_info.store_name,
+      storeNumber: data.store_info.store_number,
+      todaysCalls: data.today_calls,
+      pendingComplaints: data.pending_counts.complaints,
+      urgentActionItems: data.pending_counts.urgent_actions,
+      overdueActionItems: data.pending_counts.overdue_actions,
+      totalCallsThisWeek: data.calls.total,
+      complaintsResolvedToday: data.resolution_stats.resolved_today,
+      avgResolutionTime: `${Math.round(data.resolution_stats.avg_resolution_time_hours)}h`,
+    };
   },
 
   // ==========================================
   // ANALYTICS
   // ==========================================
-  async getAnalytics(): Promise<AnalyticsResponse> {
+  async getAnalytics(days: number = 30): Promise<AnalyticsResponse> {
     if (config.USE_MOCK) {
       return mockServer.mockGetAnalytics();
     }
-    const response = await axiosInstance.get<AnalyticsResponse>('/analytics');
+    const response = await axiosInstance.get<AnalyticsResponse>(
+      '/mobile/analytics/full',
+      { params: { days } }
+    );
     return response.data;
   },
 };

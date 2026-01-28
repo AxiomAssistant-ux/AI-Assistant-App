@@ -34,6 +34,8 @@ export interface OrgUser {
   org_id: string;
   status: UserStatus;
   is_admin: boolean;
+  is_store_account: boolean;
+  store_location_id: string | null;
   role_name: string;
   avatar_url?: string;
 }
@@ -77,6 +79,7 @@ export interface Complaint {
   complaint_severity: SeverityLevel;
   status: ComplaintStatus;
   notes: ComplaintNote[];
+  qr_code?: string | null;
   compensation?: string;
   resolution_notes?: string;
   resolved_at?: string;
@@ -119,6 +122,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
+  ttl: number;
   user: OrgUser;
   organization: Organization;
 }

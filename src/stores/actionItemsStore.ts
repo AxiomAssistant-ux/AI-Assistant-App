@@ -11,6 +11,7 @@ import { api } from '../lib/api';
 interface ActionItemsState {
   actionItems: ActionItem[];
   selectedActionItem: ActionItem | null;
+  originalStates: Map<string, ActionItem>;
   isLoading: boolean;
   isRefreshing: boolean;
   isLoadingMore: boolean;
@@ -37,12 +38,16 @@ interface ActionItemsState {
   updateActionItemStatus: (id: string, status: ActionItemStatus) => Promise<ActionItem>;
   assignActionItemToMe: (id: string) => Promise<ActionItem>;
   updateActionItemOptimistic: (actionItem: ActionItem) => void;
+  saveOriginalState: (id: string) => void;
+  revertOptimisticUpdate: (id: string) => void;
+  confirmOptimisticUpdate: (id: string) => void;
   clearSelectedActionItem: () => void;
 }
 
 export const useActionItemsStore = create<ActionItemsState>((set, get) => ({
   actionItems: [],
   selectedActionItem: null,
+  originalStates: new Map(),
   isLoading: false,
   isRefreshing: false,
   isLoadingMore: false,
@@ -176,6 +181,46 @@ export const useActionItemsStore = create<ActionItemsState>((set, get) => ({
           ? actionItem
           : state.selectedActionItem,
     }));
+  },
+
+  saveOriginalState: (id: string) => {
+    const { actionItems, selectedActionItem, originalStates } = get();
+
+    // Don't save if already saved
+    if (originalStates.has(id)) return;
+
+    // Find the action item
+    const actionItem = actionItems.find((a) => a._id === id) ||
+      (selectedActionItem?._id === id ? selectedActionItem : null);
+
+    if (actionItem) {
+      originalStates.set(id, { ...actionItem });
+      set({ originalStates: new Map(originalStates) });
+    }
+  },
+
+  revertOptimisticUpdate: (id: string) => {
+    const { actionItems, selectedActionItem, originalStates } = get();
+    const original = originalStates.get(id);
+
+    if (original) {
+      set({
+        actionItems: actionItems.map((a) =>
+          a._id === id ? original : a
+        ),
+        selectedActionItem: selectedActionItem?._id === id ? original : selectedActionItem,
+      });
+
+      // Clean up original state
+      originalStates.delete(id);
+      set({ originalStates: new Map(originalStates) });
+    }
+  },
+
+  confirmOptimisticUpdate: (id: string) => {
+    const { originalStates } = get();
+    originalStates.delete(id);
+    set({ originalStates: new Map(originalStates) });
   },
 
   clearSelectedActionItem: () => {

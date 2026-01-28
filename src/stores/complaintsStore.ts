@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 interface ComplaintsState {
   complaints: Complaint[];
   selectedComplaint: Complaint | null;
+  originalStates: Map<string, Complaint>;
   isLoading: boolean;
   isRefreshing: boolean;
   isLoadingMore: boolean;
@@ -28,12 +29,16 @@ interface ComplaintsState {
   addNote: (id: string, content: string) => Promise<Complaint>;
   resolveComplaint: (id: string, data: ResolveComplaintRequest) => Promise<Complaint>;
   updateComplaintOptimistic: (complaint: Complaint) => void;
+  saveOriginalState: (id: string) => void;
+  revertOptimisticUpdate: (id: string) => void;
+  confirmOptimisticUpdate: (id: string) => void;
   clearSelectedComplaint: () => void;
 }
 
 export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
   complaints: [],
   selectedComplaint: null,
+  originalStates: new Map(),
   isLoading: false,
   isRefreshing: false,
   isLoadingMore: false,
@@ -187,6 +192,46 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
           ? complaint
           : state.selectedComplaint,
     }));
+  },
+
+  saveOriginalState: (id: string) => {
+    const { complaints, selectedComplaint, originalStates } = get();
+
+    // Don't save if already saved
+    if (originalStates.has(id)) return;
+
+    // Find the complaint
+    const complaint = complaints.find((c) => c._id === id) ||
+      (selectedComplaint?._id === id ? selectedComplaint : null);
+
+    if (complaint) {
+      originalStates.set(id, { ...complaint });
+      set({ originalStates: new Map(originalStates) });
+    }
+  },
+
+  revertOptimisticUpdate: (id: string) => {
+    const { complaints, selectedComplaint, originalStates } = get();
+    const original = originalStates.get(id);
+
+    if (original) {
+      set({
+        complaints: complaints.map((c) =>
+          c._id === id ? original : c
+        ),
+        selectedComplaint: selectedComplaint?._id === id ? original : selectedComplaint,
+      });
+
+      // Clean up original state
+      originalStates.delete(id);
+      set({ originalStates: new Map(originalStates) });
+    }
+  },
+
+  confirmOptimisticUpdate: (id: string) => {
+    const { originalStates } = get();
+    originalStates.delete(id);
+    set({ originalStates: new Map(originalStates) });
   },
 
   clearSelectedComplaint: () => {
