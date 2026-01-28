@@ -132,7 +132,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetMe();
     }
-    const response = await axiosInstance.get<MeResponse>('/me');
+    const response = await axiosInstance.get<MeResponse>('/mobile/profile');
     return response.data;
   },
 
@@ -143,7 +143,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetUrgent();
     }
-    const response = await axiosInstance.get<UrgentResponse>('/urgent');
+    const response = await axiosInstance.get<UrgentResponse>('/mobile/urgent');
     return response.data;
   },
 
@@ -154,7 +154,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetComplaints(filters);
     }
-    const response = await axiosInstance.get<PaginatedResponse<Complaint>>('/complaints', {
+    const response = await axiosInstance.get<PaginatedResponse<Complaint>>('/mobile/complaints', {
       params: filters,
     });
     return response.data;
@@ -164,7 +164,17 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetComplaint(id);
     }
-    const response = await axiosInstance.get<Complaint>(`/complaints/${id}`);
+    const response = await axiosInstance.get<Complaint>(`/mobile/complaints/${id}`);
+    return response.data;
+  },
+
+  async scanComplaint(complaintId: string): Promise<Complaint> {
+    if (config.USE_MOCK) {
+      return mockServer.mockGetComplaint(complaintId);
+    }
+    const response = await axiosInstance.post<Complaint>('/mobile/complaints/scan', {
+      complaint_id: complaintId,
+    });
     return response.data;
   },
 
@@ -172,7 +182,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockUpdateComplaint(id, data);
     }
-    const response = await axiosInstance.patch<Complaint>(`/complaints/${id}`, data);
+    const response = await axiosInstance.patch<Complaint>(`/mobile/complaints/${id}`, data);
     return response.data;
   },
 
@@ -180,7 +190,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockAssignComplaintToMe(id);
     }
-    const response = await axiosInstance.post<Complaint>(`/complaints/${id}/assign-to-me`);
+    const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/mark-in-progress`);
     return response.data;
   },
 
@@ -188,7 +198,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockAddComplaintNote(id, data);
     }
-    const response = await axiosInstance.post<Complaint>(`/complaints/${id}/notes`, data);
+    const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/notes`, data);
     return response.data;
   },
 
@@ -196,7 +206,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockResolveComplaint(id, data);
     }
-    const response = await axiosInstance.post<Complaint>(`/complaints/${id}/resolve`, data);
+    const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/resolve`, data);
     return response.data;
   },
 
@@ -207,7 +217,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetActionItems(filters);
     }
-    const response = await axiosInstance.get<PaginatedResponse<ActionItem>>('/action-items', {
+    const response = await axiosInstance.get<PaginatedResponse<ActionItem>>('/mobile/action-items', {
       params: filters,
     });
     return response.data;
@@ -217,7 +227,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetActionItem(id);
     }
-    const response = await axiosInstance.get<ActionItem>(`/action-items/${id}`);
+    const response = await axiosInstance.get<ActionItem>(`/mobile/action-items/${id}`);
     return response.data;
   },
 
@@ -225,7 +235,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockUpdateActionItem(id, data);
     }
-    const response = await axiosInstance.patch<ActionItem>(`/action-items/${id}`, data);
+    const response = await axiosInstance.patch<ActionItem>(`/mobile/action-items/${id}/status`, data);
     return response.data;
   },
 
@@ -233,7 +243,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockAssignActionItemToMe(id);
     }
-    const response = await axiosInstance.post<ActionItem>(`/action-items/${id}/assign-to-me`);
+    const response = await axiosInstance.post<ActionItem>(`/mobile/action-items/${id}/assign-to-me`);
     return response.data;
   },
 
@@ -270,7 +280,7 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockRegisterDevice();
     }
-    const response = await axiosInstance.post<{ success: boolean }>('/devices/register', data);
+    const response = await axiosInstance.post<{ success: boolean }>('/mobile/devices/register', data);
     return response.data;
   },
 
