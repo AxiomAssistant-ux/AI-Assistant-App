@@ -5,17 +5,18 @@
 
 export const colors = {
   // Primary brand colors
+  // Primary brand colors (McDonald's Red)
   primary: {
-    50: '#EEF2FF',
-    100: '#E0E7FF',
-    200: '#C7D2FE',
-    300: '#A5B4FC',
-    400: '#818CF8',
-    500: '#6366F1',
-    600: '#4F46E5',
-    700: '#4338CA',
-    800: '#3730A3',
-    900: '#312E81',
+    50: '#FFEBEE',
+    100: '#FFCDD2',
+    200: '#EF9A9A',
+    300: '#E57373',
+    400: '#EF5350',
+    500: '#DA291C', // McDonald's Brand Red
+    600: '#C62828',
+    700: '#B71C1C',
+    800: '#9B1B1B',
+    900: '#7F1919',
   },
 
   // Neutral grays
@@ -42,11 +43,11 @@ export const colors = {
   },
 
   warning: {
-    50: '#FFFBEB',
-    100: '#FEF3C7',
-    500: '#F59E0B',
-    600: '#D97706',
-    700: '#B45309',
+    50: '#FFFDE7',
+    100: '#FFF9C4',
+    500: '#FFC72C', // McDonald's Brand Yellow
+    600: '#FBC02D',
+    700: '#F9A825',
   },
 
   error: {
@@ -75,7 +76,7 @@ export const colors = {
 
   // Status colors
   status: {
-    pending: '#F59E0B',
+    pending: '#FFC72C',
     in_progress: '#3B82F6',
     completed: '#10B981',
     resolved: '#10B981',

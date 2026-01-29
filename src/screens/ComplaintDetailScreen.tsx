@@ -8,6 +8,7 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -311,6 +312,24 @@ export const ComplaintDetailScreen: React.FC = () => {
             </Card>
           )}
 
+          {/* QR Code Section */}
+          {complaint.qr_code && (
+            <Card style={styles.section}>
+              <Text style={styles.sectionTitle}>Complaint QR Code</Text>
+              <View style={styles.qrContainer}>
+                <Image
+                  source={{ uri: complaint.qr_code }}
+                  style={styles.qrImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.qrId}>{complaint._id}</Text>
+                <Text style={styles.qrHint}>
+                  Scan this code to quickly access this complaint
+                </Text>
+              </View>
+            </Card>
+          )}
+
           {/* Read-only actions for resolved complaints */}
           {isResolved && (
             <Card style={styles.section}>
@@ -585,6 +604,29 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     lineHeight: fontSizes.sm * 1.5,
     paddingLeft: spacing['2xl'] + spacing.sm,
+  },
+  qrContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+  },
+  qrImage: {
+    width: 180,
+    height: 180,
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
+  },
+  qrId: {
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+    letterSpacing: 1,
+  },
+  qrHint: {
+    fontSize: fontSizes.xs,
+    color: colors.text.muted,
+    textAlign: 'center',
   },
   timestamps: {
     paddingTop: spacing.md,

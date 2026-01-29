@@ -15,7 +15,8 @@ export type UserStatus = 'active' | 'inactive' | 'pending';
 // ============================================
 
 export interface Organization {
-  _id: string;
+  _id: string; // Used by frontend
+  id?: string;  // Returned by backend
   company_name: string;
   logo_url: string;
   color_scheme: {
@@ -27,7 +28,8 @@ export interface Organization {
 }
 
 export interface OrgUser {
-  _id: string;
+  _id: string; // Used by frontend
+  id?: string;  // Returned by backend
   email: string;
   name: string;
   hashed_password: string;
@@ -122,7 +124,9 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   token: string;
-  ttl: number;
+  access_token?: string; // Returned by backend
+  ttl?: number;
+  expires_in?: number; // Returned by backend
   user: OrgUser;
   organization: Organization;
 }
@@ -165,12 +169,14 @@ export interface UpdateComplaintRequest {
 }
 
 export interface ResolveComplaintRequest {
-  compensation: string;
-  resolution_notes?: string;
+  complaint_id: string;
+  resolution_notes: string;
+  voucher_given: string;
 }
 
 export interface UpdateActionItemRequest {
   status?: ActionItemStatus;
+  notes?: string;
 }
 
 export interface AddNoteRequest {

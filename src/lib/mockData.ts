@@ -12,12 +12,12 @@ import {
 
 export const mockOrganization: Organization = {
   _id: 'org_001',
-  company_name: 'Metro Retail Group',
-  logo_url: 'https://ui-avatars.com/api/?name=Metro+Retail&background=4F46E5&color=fff&size=128',
+  company_name: "McDonald's",
+  logo_url: 'https://ui-avatars.com/api/?name=McDonalds&background=DA291C&color=FFC72C&size=128',
   color_scheme: {
-    primary: '#4F46E5',
-    secondary: '#818CF8',
-    accent: '#F59E0B',
+    primary: '#DA291C',
+    secondary: '#FFC72C',
+    accent: '#FFC72C',
   },
   status: 'active',
 };
@@ -29,23 +29,27 @@ export const mockOrganization: Organization = {
 export const mockUsers: OrgUser[] = [
   {
     _id: 'user_001',
-    email: 'admin@metroretail.com',
+    email: 'admin@mcdonalds.com',
     name: 'Sarah Mitchell',
     hashed_password: 'hashed_demo123',
     org_id: 'org_001',
     status: 'active',
     is_admin: true,
+    is_store_account: true,
+    store_location_id: 'loc_001',
     role_name: 'Store Manager',
-    avatar_url: 'https://ui-avatars.com/api/?name=Sarah+Mitchell&background=4F46E5&color=fff',
+    avatar_url: 'https://ui-avatars.com/api/?name=Sarah+Mitchell&background=DA291C&color=FFC72C',
   },
   {
     _id: 'user_002',
-    email: 'staff@metroretail.com',
+    email: 'staff@mcdonalds.com',
     name: 'James Rodriguez',
     hashed_password: 'hashed_demo123',
     org_id: 'org_001',
     status: 'active',
     is_admin: false,
+    is_store_account: true,
+    store_location_id: 'loc_001',
     role_name: 'Customer Service Rep',
     avatar_url: 'https://ui-avatars.com/api/?name=James+Rodriguez&background=10B981&color=fff',
   },
@@ -57,6 +61,29 @@ export const mockUsers: OrgUser[] = [
 
 export const mockComplaints: Complaint[] = [
   {
+    _id: 'MCD-QR-2024',
+    org_id: 'org_001',
+    call_log_id: 'call_999',
+    customer: {
+      name: 'Test Customer',
+      phone: '+1 (555) 999-0000',
+      email: 'test@mcdonalds.com',
+    },
+    store: {
+      name: "McDonald's Times Square",
+      address: '1540 Broadway, New York, NY 10036',
+      phone: '+1 (212) 221-2350',
+    },
+    complaint_type: 'Order Accuracy',
+    complaint_description: 'Test complaint for QR verification. This complaint is used to verify the scan and manual entry flow.',
+    complaint_severity: 'medium',
+    status: 'pending',
+    notes: [],
+    qr_code: 'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=MCD-QR-2024',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  {
     _id: 'complaint_001',
     org_id: 'org_001',
     call_log_id: 'call_101',
@@ -66,7 +93,7 @@ export const mockComplaints: Complaint[] = [
       email: 'michael.t@email.com',
     },
     store: {
-      name: 'Metro Downtown',
+      name: "McDonald's Downtown",
       address: '123 Main Street, Suite 100',
       phone: '+1 (555) 100-2000',
     },
@@ -96,7 +123,7 @@ export const mockComplaints: Complaint[] = [
       email: 'emily.chen@email.com',
     },
     store: {
-      name: 'Metro Westside',
+      name: "McDonald's Westside",
       address: '456 Oak Avenue',
       phone: '+1 (555) 200-3000',
     },
@@ -125,7 +152,7 @@ export const mockComplaints: Complaint[] = [
       phone: '+1 (555) 456-7890',
     },
     store: {
-      name: 'Metro Downtown',
+      name: "McDonald's Downtown",
       address: '123 Main Street, Suite 100',
       phone: '+1 (555) 100-2000',
     },
@@ -147,7 +174,7 @@ export const mockComplaints: Complaint[] = [
       email: 'lisa.w@email.com',
     },
     store: {
-      name: 'Metro Eastside',
+      name: "McDonald's Eastside",
       address: '789 Pine Road',
       phone: '+1 (555) 300-4000',
     },

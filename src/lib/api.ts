@@ -102,6 +102,14 @@ axiosInstance.interceptors.response.use(
   }
 );
 
+// Helper to map backend 'id' to frontend '_id' if necessary
+const mapId = <T extends { _id: string; id?: string }>(item: T): T => {
+  if (item.id && !item._id) {
+    item._id = item.id;
+  }
+  return item;
+};
+
 // ============================================
 // API FUNCTIONS
 // ============================================
@@ -114,26 +122,52 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockLogin(data);
     }
-    const response = await axiosInstance.post<LoginResponse>('/auth/org/login', data);
+    const response = await axiosInstance.post<any>('/auth/org/signin', data);
+    const rawData = response.data;
+
+    // Map backend fields to frontend format
+    const mappedResponse: LoginResponse = {
+      token: rawData.access_token || rawData.token,
+      ttl: rawData.expires_in || rawData.ttl,
+      user: {
+        ...rawData.user,
+        _id: rawData.user.id || rawData.user._id,
+      },
+      organization: {
+        ...rawData.organization,
+        _id: rawData.organization.id || rawData.organization._id,
+      },
+    };
 
     // Validate store account
-    if (!response.data.user.is_store_account) {
+    if (!mappedResponse.user.is_store_account) {
       throw new Error('This account is not authorized for mobile access');
     }
 
-    if (!response.data.user.store_location_id) {
+    if (!mappedResponse.user.store_location_id) {
       throw new Error('No store location assigned to this account');
     }
 
-    return response.data;
+    return mappedResponse;
   },
 
   async getMe(): Promise<MeResponse> {
     if (config.USE_MOCK) {
       return mockServer.mockGetMe();
     }
-    const response = await axiosInstance.get<MeResponse>('/mobile/profile');
-    return response.data;
+    const response = await axiosInstance.get<any>('/mobile/profile');
+    const rawData = response.data;
+
+    return {
+      user: mapId({
+        ...rawData.user,
+        _id: rawData.user.id || rawData.user._id,
+      }),
+      organization: mapId({
+        ...rawData.organization,
+        _id: rawData.organization.id || rawData.organization._id,
+      }),
+    };
   },
 
   // ==========================================
@@ -144,7 +178,12 @@ export const api = {
       return mockServer.mockGetUrgent();
     }
     const response = await axiosInstance.get<UrgentResponse>('/mobile/urgent');
-    return response.data;
+    const data = response.data;
+
+    return {
+      complaints: data.complaints.map(mapId),
+      action_items: data.action_items.map(mapId),
+    };
   },
 
   // ==========================================
@@ -157,7 +196,11 @@ export const api = {
     const response = await axiosInstance.get<PaginatedResponse<Complaint>>('/mobile/complaints', {
       params: filters,
     });
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      data: data.data.map(mapId),
+    };
   },
 
   async getComplaint(id: string): Promise<Complaint> {
@@ -165,7 +208,7 @@ export const api = {
       return mockServer.mockGetComplaint(id);
     }
     const response = await axiosInstance.get<Complaint>(`/mobile/complaints/${id}`);
-    return response.data;
+    return mapId(response.data);
   },
 
   async scanComplaint(complaintId: string): Promise<Complaint> {
@@ -175,7 +218,7 @@ export const api = {
     const response = await axiosInstance.post<Complaint>('/mobile/complaints/scan', {
       complaint_id: complaintId,
     });
-    return response.data;
+    return mapId(response.data);
   },
 
   async updateComplaint(id: string, data: UpdateComplaintRequest): Promise<Complaint> {
@@ -183,7 +226,7 @@ export const api = {
       return mockServer.mockUpdateComplaint(id, data);
     }
     const response = await axiosInstance.patch<Complaint>(`/mobile/complaints/${id}`, data);
-    return response.data;
+    return mapId(response.data);
   },
 
   async assignComplaintToMe(id: string): Promise<Complaint> {
@@ -191,7 +234,7 @@ export const api = {
       return mockServer.mockAssignComplaintToMe(id);
     }
     const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/mark-in-progress`);
-    return response.data;
+    return mapId(response.data);
   },
 
   async addComplaintNote(id: string, data: AddNoteRequest): Promise<Complaint> {
@@ -207,7 +250,7 @@ export const api = {
       return mockServer.mockResolveComplaint(id, data);
     }
     const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/resolve`, data);
-    return response.data;
+    return mapId(response.data);
   },
 
   // ==========================================
@@ -220,7 +263,11 @@ export const api = {
     const response = await axiosInstance.get<PaginatedResponse<ActionItem>>('/mobile/action-items', {
       params: filters,
     });
-    return response.data;
+    const data = response.data;
+    return {
+      ...data,
+      data: data.data.map(mapId),
+    };
   },
 
   async getActionItem(id: string): Promise<ActionItem> {
@@ -228,7 +275,7 @@ export const api = {
       return mockServer.mockGetActionItem(id);
     }
     const response = await axiosInstance.get<ActionItem>(`/mobile/action-items/${id}`);
-    return response.data;
+    return mapId(response.data);
   },
 
   async updateActionItem(id: string, data: UpdateActionItemRequest): Promise<ActionItem> {
@@ -236,7 +283,7 @@ export const api = {
       return mockServer.mockUpdateActionItem(id, data);
     }
     const response = await axiosInstance.patch<ActionItem>(`/mobile/action-items/${id}/status`, data);
-    return response.data;
+    return mapId(response.data);
   },
 
   async assignActionItemToMe(id: string): Promise<ActionItem> {
@@ -244,7 +291,7 @@ export const api = {
       return mockServer.mockAssignActionItemToMe(id);
     }
     const response = await axiosInstance.post<ActionItem>(`/mobile/action-items/${id}/assign-to-me`);
-    return response.data;
+    return mapId(response.data);
   },
 
   // ==========================================
@@ -281,6 +328,14 @@ export const api = {
       return mockServer.mockRegisterDevice();
     }
     const response = await axiosInstance.post<{ success: boolean }>('/mobile/devices/register', data);
+    return response.data;
+  },
+
+  async unregisterDevice(): Promise<{ success: boolean }> {
+    if (config.USE_MOCK) {
+      return { success: true };
+    }
+    const response = await axiosInstance.post<{ success: boolean }>('/mobile/devices/unregister');
     return response.data;
   },
 
@@ -351,6 +406,17 @@ export const api = {
     }
     const response = await axiosInstance.get<AnalyticsResponse>(
       '/mobile/analytics/full',
+      { params: { days } }
+    );
+    return response.data;
+  },
+
+  async getAnalyticsCallsTimeline(days: number = 7): Promise<any> {
+    if (config.USE_MOCK) {
+      return { calls: [] }; // Mock if needed
+    }
+    const response = await axiosInstance.get<any>(
+      '/mobile/analytics/calls-timeline',
       { params: { days } }
     );
     return response.data;

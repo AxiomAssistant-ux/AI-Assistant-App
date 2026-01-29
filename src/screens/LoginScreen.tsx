@@ -14,7 +14,7 @@ import { Input, Button } from '../components';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
 export const LoginScreen: React.FC = () => {
-  const [email, setEmail] = useState('admin@metroretail.com');
+  const [email, setEmail] = useState('admin@mcdonalds.com');
   const [password, setPassword] = useState('demo123');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -46,10 +46,10 @@ export const LoginScreen: React.FC = () => {
         >
           <View style={styles.header}>
             <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>SR</Text>
+              <Text style={styles.logoText}>M</Text>
             </View>
             <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue to Store Response</Text>
+            <Text style={styles.subtitle}>Sign in to continue to McDonald's Assistant</Text>
           </View>
 
           <View style={styles.form}>
@@ -100,11 +100,11 @@ export const LoginScreen: React.FC = () => {
               <Text style={styles.demoTitle}>Demo Credentials</Text>
               <View style={styles.credentialRow}>
                 <Text style={styles.credentialLabel}>Admin:</Text>
-                <Text style={styles.credentialValue}>admin@metroretail.com</Text>
+                <Text style={styles.credentialValue}>admin@mcdonalds.com</Text>
               </View>
               <View style={styles.credentialRow}>
                 <Text style={styles.credentialLabel}>Staff:</Text>
-                <Text style={styles.credentialValue}>staff@metroretail.com</Text>
+                <Text style={styles.credentialValue}>staff@mcdonalds.com</Text>
               </View>
               <View style={styles.credentialRow}>
                 <Text style={styles.credentialLabel}>Password:</Text>
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: colors.primary[600],
+    backgroundColor: colors.primary[500],
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing.xl,

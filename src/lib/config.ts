@@ -7,7 +7,7 @@ export const config = {
   USE_MOCK: true,
 
   // API Base URL (for future backend integration)
-  API_BASE_URL: 'https://api.storeresponse.com/v1',
+  API_BASE_URL: 'https://virtual-assistant-c1e0f2944a3d.herokuapp.com/api/v1',
 
   // Token storage key
   TOKEN_STORAGE_KEY: 'store_response_auth_token',
@@ -19,7 +19,7 @@ export const config = {
   DEFAULT_PAGE_SIZE: 10,
 
   // App info
-  APP_NAME: 'Store Response',
+  APP_NAME: "McDonald's Assistant",
   APP_VERSION: '1.0.0',
 };
 
