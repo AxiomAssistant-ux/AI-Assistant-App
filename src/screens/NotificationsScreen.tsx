@@ -131,7 +131,7 @@ export const NotificationsScreen: React.FC = () => {
     if (notification.data.entity_type === 'complaint') {
       navigation.navigate('ComplaintDetail', { id: notification.data.entity_id });
     } else {
-      navigation.navigate('ActionItemDetail', { id: notification.data.entity_id });
+      navigation.navigate('FollowupDetail', { id: notification.data.entity_id });
     }
   };
 

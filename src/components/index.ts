@@ -14,3 +14,4 @@ export { Avatar } from './Avatar';
 export { Header } from './Header';
 export { StatCard } from './StatCard';
 export { ResolveComplaintModal } from './ResolveComplaintModal';
+export { ScannedComplaintModal } from './ScannedComplaintModal';

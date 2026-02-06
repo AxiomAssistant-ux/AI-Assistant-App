@@ -5,8 +5,8 @@ import {
   StyleSheet,
   Animated,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useToastStore } from '../stores';
 import { ToastType } from '../lib/types';

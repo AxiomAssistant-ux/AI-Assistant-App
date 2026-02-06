@@ -1,12 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeStack } from './HomeStack';
 import { ComplaintsStack } from './ComplaintsStack';
-import { ActionItemsStack } from './ActionItemsStack';
+import { FollowupsStack } from './FollowupsStack';
 import { AnalyticsStack } from './AnalyticsStack';
-import { useHomeStore, useComplaintsStore, useActionItemsStore } from '../stores';
+import { QRScannerScreen } from '../screens/QRScannerScreen';
+import { useHomeStore, useComplaintsStore } from '../stores';
 import { MainTabParamList } from './types';
 import { colors, fontSizes, fontWeights, spacing } from '../theme';
 
@@ -29,19 +31,27 @@ const TabBadge: React.FC<TabBadgeProps> = ({ count }) => {
 export const MainTabNavigator: React.FC = () => {
   const stats = useHomeStore((state) => state.stats);
 
-  // Calculate pending complaints count
-  const pendingComplaints = stats?.pendingComplaints ?? 0;
-  const urgentActions = stats?.urgentActionItems ?? 0;
+  // Calculate counts for badges
+  const pendingComplaints = stats?.complaints.by_status.pending ?? 0;
+  const pendingFollowupsCount = stats?.pending_followups ?? 0;
 
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary[600],
-        tabBarInactiveTintColor: colors.gray[400],
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
-        tabBarItemStyle: styles.tabBarItem,
+      screenOptions={({ route }) => {
+        const routeName = getFocusedRouteNameFromRoute(route);
+        const hideOnScreens = ['ComplaintDetail', 'FollowupDetail'];
+
+        return {
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary[600],
+          tabBarInactiveTintColor: colors.gray[400],
+          tabBarStyle: {
+            ...styles.tabBar,
+            display: hideOnScreens.includes(routeName as string) ? 'none' : 'flex',
+          },
+          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarItemStyle: styles.tabBarItem,
+        };
       }}
     >
       <Tab.Screen
@@ -76,20 +86,36 @@ export const MainTabNavigator: React.FC = () => {
         }}
       />
       <Tab.Screen
-        name="Actions"
-        component={ActionItemsStack}
+        name="QRScanner"
+        component={QRScannerScreen}
+        options={{
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.scanIconContainer}>
+              <Ionicons
+                name="qr-code"
+                size={28}
+                color={colors.white}
+              />
+            </View>
+          ),
+          tabBarLabel: 'Scan',
+        }}
+      />
+      <Tab.Screen
+        name="Followups"
+        component={FollowupsStack}
         options={{
           tabBarIcon: ({ color, size, focused }) => (
             <View>
               <Ionicons
-                name={focused ? 'flash' : 'flash-outline'}
+                name={focused ? 'checkbox' : 'checkbox-outline'}
                 size={size}
-                color={urgentActions > 0 ? colors.error[500] : color}
+                color={pendingFollowupsCount > 0 ? colors.error[500] : color}
               />
-              <TabBadge count={urgentActions} />
+              <TabBadge count={pendingFollowupsCount} />
             </View>
           ),
-          tabBarLabel: 'Actions',
+          tabBarLabel: 'Follow-ups',
         }}
       />
       <Tab.Screen
@@ -126,6 +152,20 @@ const styles = StyleSheet.create({
   },
   tabBarItem: {
     paddingVertical: spacing.xs,
+  },
+  scanIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary[600],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -20,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   badge: {
     position: 'absolute',

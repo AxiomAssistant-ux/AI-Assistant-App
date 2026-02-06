@@ -4,7 +4,7 @@
 
 export const config = {
   // Toggle between mock and real API
-  USE_MOCK: true,
+  USE_MOCK: false,
 
   // API Base URL (for future backend integration)
   API_BASE_URL: 'https://virtual-assistant-c1e0f2944a3d.herokuapp.com/api/v1',

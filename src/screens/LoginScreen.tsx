@@ -1,3 +1,5 @@
+
+
 import React, { useState } from 'react';
 import {
   View,
@@ -6,7 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  TouchableOpacity,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore, showError } from '../stores';
@@ -14,22 +16,24 @@ import { Input, Button } from '../components';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
 export const LoginScreen: React.FC = () => {
-  const [email, setEmail] = useState('admin@mcdonalds.com');
-  const [password, setPassword] = useState('demo123');
+  // const [email, setEmail] = useState('admin@mcdonalds.com');
+  // const [password, setPassword] = useState('demo123');
+  const [email, setEmail] = useState('jimmykuddon@gmail.com');
+  const [password, setPassword] = useState('User@123');
   const [showPassword, setShowPassword] = useState(false);
 
   const { login, isLoading, error, clearError } = useAuthStore();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      showError('Please enter email and password');
+      showError('Please enter your email and password');
       return;
     }
 
     try {
       await login(email.trim(), password);
-    } catch (err) {
-      // Error is handled in store
+    } catch (_) {
+      // handled globally
     }
   };
 
@@ -37,30 +41,36 @@ export const LoginScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        style={{ flex: 1 }}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>M</Text>
-            </View>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue to McDonald's Assistant</Text>
+            <Image
+              source={require('../../assets/icon.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>
+              Sign in to manage complaints and store activity
+            </Text>
           </View>
 
-          <View style={styles.form}>
+          {/* Card */}
+          <View style={styles.card}>
             <Input
-              label="Email"
+              label="Email address"
               value={email}
               onChangeText={(text) => {
                 setEmail(text);
                 if (error) clearError();
               }}
-              placeholder="Enter your email"
+              placeholder="name@company.com"
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -95,23 +105,12 @@ export const LoginScreen: React.FC = () => {
               fullWidth
               style={styles.loginButton}
             />
-
-            <View style={styles.demoCredentials}>
-              <Text style={styles.demoTitle}>Demo Credentials</Text>
-              <View style={styles.credentialRow}>
-                <Text style={styles.credentialLabel}>Admin:</Text>
-                <Text style={styles.credentialValue}>admin@mcdonalds.com</Text>
-              </View>
-              <View style={styles.credentialRow}>
-                <Text style={styles.credentialLabel}>Staff:</Text>
-                <Text style={styles.credentialValue}>staff@mcdonalds.com</Text>
-              </View>
-              <View style={styles.credentialRow}>
-                <Text style={styles.credentialLabel}>Password:</Text>
-                <Text style={styles.credentialValue}>demo123</Text>
-              </View>
-            </View>
           </View>
+
+          {/* Footer */}
+          <Text style={styles.footerText}>
+            © {new Date().getFullYear()} McDonald's Assistant
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -121,58 +120,54 @@ export const LoginScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.white,
-  },
-  keyboardView: {
-    flex: 1,
+    backgroundColor: colors.background.secondary,
   },
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: spacing.xl,
-    paddingVertical: spacing['3xl'],
+    justifyContent: 'center',
   },
+
+  /* Header */
   header: {
     alignItems: 'center',
     marginBottom: spacing['3xl'],
   },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.primary[500],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: spacing.xl,
-    shadowColor: colors.primary[600],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: fontWeights.bold,
-    color: colors.white,
+  logo: {
+    width: 88,
+    height: 88,
+    marginBottom: spacing.lg,
   },
   title: {
     fontSize: fontSizes['2xl'],
     fontWeight: fontWeights.bold,
     color: colors.text.primary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: fontSizes.base,
+    fontSize: fontSizes.sm,
     color: colors.text.secondary,
     textAlign: 'center',
+    maxWidth: 280,
   },
-  form: {
-    flex: 1,
+
+  /* Card */
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: borderRadius.xl,
+    padding: spacing.xl,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
+
   errorContainer: {
     backgroundColor: colors.error[50],
     padding: spacing.md,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
+    borderRadius: borderRadius.md,
+    marginBottom: spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: colors.error[500],
   },
@@ -181,37 +176,17 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.medium,
   },
+
   loginButton: {
     marginTop: spacing.md,
   },
-  demoCredentials: {
-    marginTop: spacing['3xl'],
-    padding: spacing.lg,
-    backgroundColor: colors.gray[50],
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border.light,
-  },
-  demoTitle: {
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-    color: colors.text.secondary,
-    marginBottom: spacing.md,
+
+  /* Footer */
+  footerText: {
+    marginTop: spacing.xl,
+    fontSize: fontSizes.xs,
+    color: colors.text.muted,
     textAlign: 'center',
-  },
-  credentialRow: {
-    flexDirection: 'row',
-    marginBottom: spacing.xs,
-  },
-  credentialLabel: {
-    fontSize: fontSizes.sm,
-    color: colors.text.tertiary,
-    width: 70,
-  },
-  credentialValue: {
-    fontSize: fontSizes.sm,
-    color: colors.text.primary,
-    fontWeight: fontWeights.medium,
   },
 });
 

@@ -54,6 +54,12 @@ export interface Store {
   phone?: string;
 }
 
+export interface ReplacementItem {
+  item_name: string;
+  size: string;
+  reason: string;
+}
+
 export interface ActionItem {
   _id: string;
   org_id: string;
@@ -68,6 +74,8 @@ export interface ActionItem {
   due_at: string;
   created_at: string;
   updated_at: string;
+  resolution_notes?: string;
+  replacement_item?: ReplacementItem;
 }
 
 export interface Complaint {
@@ -82,12 +90,37 @@ export interface Complaint {
   status: ComplaintStatus;
   notes: ComplaintNote[];
   qr_code?: string | null;
+  store_location_id?: string | null;
   compensation?: string;
   resolution_notes?: string;
   resolved_at?: string;
   resolved_by?: string;
   created_at: string;
   updated_at: string;
+  // Embedded summary for lists
+  action_items_count?: number;
+  urgent_count?: number;
+}
+
+export interface ComplaintWithActions {
+  complaint: Complaint;
+  action_items: ActionItem[];
+  action_items_count: number;
+  urgent_count: number;
+  call_summary?: CallSummary;
+}
+
+export interface CallSummary {
+  recording_link?: string;
+  call_timing?: {
+    start_time: string;
+    end_time: string;
+    duration: number;
+  };
+  summaries?: {
+    short_summary: string;
+    detailed_summary: string;
+  };
 }
 
 export interface ComplaintNote {
@@ -145,8 +178,7 @@ export interface PaginatedResponse<T> {
 }
 
 export interface UrgentResponse {
-  complaints: Complaint[];
-  action_items: ActionItem[];
+  complaints: ComplaintWithActions[];
 }
 
 export interface ComplaintsFilter {
@@ -188,6 +220,10 @@ export interface RegisterDeviceRequest {
   platform: 'ios' | 'android';
 }
 
+export interface ScanCallRequest {
+  call_id: string;
+}
+
 export interface ApiError {
   message: string;
   code: string;
@@ -196,15 +232,53 @@ export interface ApiError {
 
 // Dashboard & Analytics types
 export interface DashboardResponse {
-  storeName: string;
-  storeNumber: string;
-  todaysCalls: number;
-  pendingComplaints: number;
-  urgentActionItems: number;
-  overdueActionItems: number;
-  totalCallsThisWeek: number;
-  complaintsResolvedToday: number;
-  avgResolutionTime: string;
+  store_info: {
+    store_name: string;
+    store_number: string;
+    store_location: string;
+  };
+  today_calls: number;
+  date_range: {
+    start_date: string;
+    end_date: string;
+    days: number;
+  };
+  calls: {
+    total: number;
+    by_date: Record<string, number>;
+    by_hour: Record<string, number>;
+    peak_hour: number | null;
+  };
+  complaints: {
+    total: number;
+    by_status: {
+      pending: number;
+      in_progress: number;
+      resolved: number;
+    };
+    by_severity: Record<string, number>;
+  };
+  // Note: These exclude follow-ups
+  action_items: {
+    total: number;
+    by_status: {
+      pending: number;
+      in_progress: number;
+      completed: number;
+    };
+    urgent: number;
+    overdue: number;
+  };
+  pending_counts: {
+    complaints: number;
+    action_items: number;
+    urgent_actions: number;
+    overdue_actions: number;
+  };
+  pending_followups: number;
+  sla_percentage: number;
+  avg_response_time?: string;
+  customer_satisfaction?: string;
 }
 
 export interface AnalyticsResponse {
@@ -235,6 +309,6 @@ export interface Toast {
 }
 
 export interface UrgentItem {
-  type: 'complaint' | 'action_item';
-  item: Complaint | ActionItem;
+  type: 'complaint';
+  item: ComplaintWithActions;
 }

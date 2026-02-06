@@ -1,11 +1,11 @@
 import { create } from 'zustand';
-import { Complaint, ComplaintStatus, SeverityLevel, ComplaintsFilter, ResolveComplaintRequest } from '../lib/types';
+import { Complaint, ComplaintStatus, SeverityLevel, ComplaintsFilter, ResolveComplaintRequest, ComplaintWithActions } from '../lib/types';
 import { api } from '../lib/api';
 
 interface ComplaintsState {
-  complaints: Complaint[];
-  selectedComplaint: Complaint | null;
-  originalStates: Map<string, Complaint>;
+  complaints: ComplaintWithActions[];
+  selectedComplaint: ComplaintWithActions | null;
+  originalStates: Map<string, ComplaintWithActions>;
   isLoading: boolean;
   isRefreshing: boolean;
   isLoadingMore: boolean;
@@ -23,12 +23,13 @@ interface ComplaintsState {
   refreshComplaints: () => Promise<void>;
   loadMoreComplaints: () => Promise<void>;
   fetchComplaint: (id: string) => Promise<void>;
+  scanCall: (callId: string) => Promise<void>;
+  setSelectedComplaint: (data: ComplaintWithActions) => void;
   setFilters: (filters: { status?: ComplaintStatus; severity?: SeverityLevel }) => void;
-  updateComplaintStatus: (id: string, status: ComplaintStatus) => Promise<Complaint>;
-  assignComplaintToMe: (id: string) => Promise<Complaint>;
-  addNote: (id: string, content: string) => Promise<Complaint>;
-  resolveComplaint: (id: string, data: ResolveComplaintRequest) => Promise<Complaint>;
-  updateComplaintOptimistic: (complaint: Complaint) => void;
+  updateComplaintStatus: (id: string, status: ComplaintStatus) => Promise<any>;
+  addNote: (id: string, content: string) => Promise<any>;
+  resolveComplaint: (id: string, data: ResolveComplaintRequest) => Promise<any>;
+  updateComplaintOptimistic: (data: ComplaintWithActions) => void;
   saveOriginalState: (id: string) => void;
   revertOptimisticUpdate: (id: string) => void;
   confirmOptimisticUpdate: (id: string) => void;
@@ -129,12 +130,30 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     set({ isLoadingDetail: true, error: null });
 
     try {
-      const complaint = await api.getComplaint(id);
-      set({ selectedComplaint: complaint, isLoadingDetail: false });
+      const data = await api.getComplaint(id);
+      // Backend returns ComplaintWithActions for single complaint as well if updated
+      // But let's handle both if possible. Usually detail returns the combined object now.
+      set({ selectedComplaint: data as any, isLoadingDetail: false });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to fetch complaint';
       set({ error: message, isLoadingDetail: false });
     }
+  },
+
+  scanCall: async (callId: string) => {
+    set({ isLoadingDetail: true, error: null });
+
+    try {
+      const data = await api.scanCall(callId);
+      set({ selectedComplaint: data, isLoadingDetail: false });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to scan call';
+      set({ error: message, isLoadingDetail: false });
+    }
+  },
+
+  setSelectedComplaint: (data: ComplaintWithActions) => {
+    set({ selectedComplaint: data });
   },
 
   setFilters: (filters) => {
@@ -145,17 +164,9 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
   updateComplaintStatus: async (id: string, status: ComplaintStatus) => {
     try {
       const complaint = await api.updateComplaint(id, { status });
-      get().updateComplaintOptimistic(complaint);
-      return complaint;
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  assignComplaintToMe: async (id: string) => {
-    try {
-      const complaint = await api.assignComplaintToMe(id);
-      get().updateComplaintOptimistic(complaint);
+      // We need to fetch combined data or update optimistic carefully
+      // For now, let's just refresh the details or list
+      get().fetchComplaints(true);
       return complaint;
     } catch (error) {
       throw error;
@@ -165,7 +176,7 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
   addNote: async (id: string, content: string) => {
     try {
       const complaint = await api.addComplaintNote(id, { content });
-      get().updateComplaintOptimistic(complaint);
+      get().fetchComplaints(true);
       return complaint;
     } catch (error) {
       throw error;
@@ -175,21 +186,21 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
   resolveComplaint: async (id: string, data: ResolveComplaintRequest) => {
     try {
       const complaint = await api.resolveComplaint(id, data);
-      get().updateComplaintOptimistic(complaint);
+      get().fetchComplaints(true);
       return complaint;
     } catch (error) {
       throw error;
     }
   },
 
-  updateComplaintOptimistic: (complaint: Complaint) => {
+  updateComplaintOptimistic: (data: ComplaintWithActions) => {
     set((state) => ({
       complaints: state.complaints.map((c) =>
-        c._id === complaint._id ? complaint : c
+        c.complaint._id === data.complaint._id ? data : c
       ),
       selectedComplaint:
-        state.selectedComplaint?._id === complaint._id
-          ? complaint
+        state.selectedComplaint?.complaint._id === data.complaint._id
+          ? data
           : state.selectedComplaint,
     }));
   },
@@ -201,11 +212,11 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     if (originalStates.has(id)) return;
 
     // Find the complaint
-    const complaint = complaints.find((c) => c._id === id) ||
-      (selectedComplaint?._id === id ? selectedComplaint : null);
+    const data = complaints.find((c) => c.complaint._id === id) ||
+      (selectedComplaint?.complaint._id === id ? selectedComplaint : null);
 
-    if (complaint) {
-      originalStates.set(id, { ...complaint });
+    if (data) {
+      originalStates.set(id, { ...data });
       set({ originalStates: new Map(originalStates) });
     }
   },
@@ -217,9 +228,9 @@ export const useComplaintsStore = create<ComplaintsState>((set, get) => ({
     if (original) {
       set({
         complaints: complaints.map((c) =>
-          c._id === id ? original : c
+          c.complaint._id === id ? original : c
         ),
-        selectedComplaint: selectedComplaint?._id === id ? original : selectedComplaint,
+        selectedComplaint: selectedComplaint?.complaint._id === id ? original : selectedComplaint,
       });
 
       // Clean up original state

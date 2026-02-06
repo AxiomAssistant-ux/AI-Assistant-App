@@ -110,19 +110,34 @@ export const mockGetUrgent = async (): Promise<UrgentResponse> => {
     throw new Error('Failed to fetch urgent items');
   }
 
-  const urgentComplaints = complaints.filter(
-    c => (c.complaint_severity === 'high' || c.complaint_severity === 'critical') &&
-         (c.status === 'pending' || c.status === 'in_progress')
-  );
+  // Map complaints to ComplaintWithActions and filter by urgency
+  const urgentComplaintsWithActions: any[] = complaints
+    .map(c => {
+      const associatedActions = actionItems.filter(a => a.call_id === c.call_log_id || a.call_id === c._id);
+      const urgentActions = associatedActions.filter(
+        a => (a.urgency === 'high' || a.urgency === 'critical') &&
+          (a.status === 'pending' || a.status === 'in_progress')
+      );
 
-  const urgentActions = actionItems.filter(
-    a => (a.urgency === 'high' || a.urgency === 'critical') &&
-         (a.status === 'pending' || a.status === 'in_progress')
-  );
+      return {
+        complaint: c,
+        action_items: associatedActions,
+        action_items_count: associatedActions.length,
+        urgent_count: urgentActions.length
+      };
+    })
+    .filter(data => {
+      const { complaint, urgent_count } = data;
+      const isUrgent =
+        (complaint.complaint_severity === 'high' ||
+          complaint.complaint_severity === 'critical' ||
+          urgent_count > 0) &&
+        (complaint.status === 'pending' || complaint.status === 'in_progress');
+      return isUrgent;
+    });
 
   return {
-    complaints: urgentComplaints,
-    action_items: urgentActions,
+    complaints: urgentComplaintsWithActions,
   };
 };
 
@@ -304,14 +319,14 @@ export const mockResolveComplaint = async (
     _id: generateId(),
     user_id: user._id,
     user_name: user.name,
-    content: `Complaint resolved. Compensation: ${data.compensation}${data.resolution_notes ? `. Notes: ${data.resolution_notes}` : ''}`,
+    content: `Complaint resolved. Voucher: ${data.voucher_given}${data.resolution_notes ? `. Notes: ${data.resolution_notes}` : ''}`,
     created_at: now,
   };
 
   complaints[index] = {
     ...complaints[index],
     status: 'resolved',
-    compensation: data.compensation,
+    compensation: data.voucher_given,
     resolution_notes: data.resolution_notes,
     resolved_at: now,
     resolved_by: user.name,
@@ -495,36 +510,93 @@ export const mockGetDashboard = async (): Promise<DashboardResponse> => {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
 
-  // Count pending complaints
+  // Count complaints
+  const totalComplaints = complaints.length;
   const pendingComplaints = complaints.filter(c => c.status === 'pending').length;
+  const inProgressComplaints = complaints.filter(c => c.status === 'in_progress').length;
+  const resolvedComplaints = complaints.filter(c => c.status === 'resolved').length;
 
-  // Count urgent action items (high/critical and pending/in_progress)
-  const urgentActionItems = actionItems.filter(
-    a => (a.urgency === 'high' || a.urgency === 'critical') &&
-         (a.status === 'pending' || a.status === 'in_progress')
-  ).length;
+  const complaintsBySeverity = complaints.reduce((acc, c) => {
+    acc[c.complaint_severity] = (acc[c.complaint_severity] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
-  // Count overdue action items
-  const overdueActionItems = actionItems.filter(
-    a => new Date(a.due_at) < now &&
-         (a.status === 'pending' || a.status === 'in_progress')
-  ).length;
-
-  // Count resolved today
   const complaintsResolvedToday = complaints.filter(
     c => c.status === 'resolved' && c.updated_at.startsWith(today)
   ).length;
 
+  // Count action items (excluding follow-ups for specific stats if needed)
+  const totalActions = actionItems.length;
+  const pendingActions = actionItems.filter(a => a.status === 'pending').length;
+  const inProgressActions = actionItems.filter(a => a.status === 'in_progress').length;
+  const completedActions = actionItems.filter(a => a.status === 'completed').length;
+
+  const urgentActionItems = actionItems.filter(
+    a => (a.urgency === 'high' || a.urgency === 'critical') &&
+      (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  const overdueActionItems = actionItems.filter(
+    a => new Date(a.due_at) < now &&
+      (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  const pendingFollowups = actionItems.filter(
+    a => a.type === 'follow_up' && (a.status === 'pending' || a.status === 'in_progress')
+  ).length;
+
+  // Calculate SLA % (resolved / total)
+  const slaPercentage = totalComplaints > 0
+    ? Math.round((resolvedComplaints / totalComplaints) * 100)
+    : 100;
+
   return {
-    storeName: 'Metro Retail Downtown',
-    storeNumber: '1042',
-    todaysCalls: Math.floor(Math.random() * 50) + 20,
-    pendingComplaints,
-    urgentActionItems,
-    overdueActionItems,
-    totalCallsThisWeek: Math.floor(Math.random() * 200) + 100,
-    complaintsResolvedToday,
-    avgResolutionTime: '2.4h',
+    store_info: {
+      store_name: "McDonald's Times Square",
+      store_number: '1042',
+      store_location: 'New York, NY',
+    },
+    today_calls: Math.floor(Math.random() * 15) + 5, // Keep it slightly dynamic but reasonable
+    date_range: {
+      start_date: today,
+      end_date: today,
+      days: 1,
+    },
+    calls: {
+      total: 156,
+      by_date: { [today]: 45 },
+      by_hour: { '14': 12 },
+      peak_hour: 14,
+    },
+    complaints: {
+      total: totalComplaints,
+      by_status: {
+        pending: pendingComplaints,
+        in_progress: inProgressComplaints,
+        resolved: resolvedComplaints,
+      },
+      by_severity: complaintsBySeverity,
+    },
+    action_items: {
+      total: totalActions,
+      by_status: {
+        pending: pendingActions,
+        in_progress: inProgressActions,
+        completed: completedActions,
+      },
+      urgent: urgentActionItems,
+      overdue: overdueActionItems,
+    },
+    pending_counts: {
+      complaints: pendingComplaints,
+      action_items: pendingActions,
+      urgent_actions: urgentActionItems,
+      overdue_actions: overdueActionItems,
+    },
+    pending_followups: pendingFollowups,
+    sla_percentage: slaPercentage,
+    avg_response_time: '1.8h',
+    customer_satisfaction: '4.7/5',
   };
 };
 
@@ -564,7 +636,7 @@ export const mockGetAnalytics = async (): Promise<AnalyticsResponse> => {
   // Count urgent action items
   const urgentActionsCount = actionItems.filter(
     a => (a.urgency === 'high' || a.urgency === 'critical') &&
-         (a.status === 'pending' || a.status === 'in_progress')
+      (a.status === 'pending' || a.status === 'in_progress')
   ).length;
 
   // Generate random trend data (between -15% and +25%)

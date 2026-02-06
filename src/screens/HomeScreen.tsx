@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,37 +10,64 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useHomeStore, useAuthStore, useUrgentStore } from '../stores';
-import { Card, CardSkeleton, StatusChip, UrgencyChip, EmptyState } from '../components';
-import { Complaint, ActionItem } from '../lib/types';
+import { useHomeStore, useAuthStore, useUrgentStore, useNotificationsStore } from '../stores';
+import { Card, CardSkeleton, StatusChip, UrgencyChip } from '../components';
+import { ComplaintWithActions, UrgentItem } from '../lib/types';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 import { cardShadow } from '../theme/shadows';
 
-// Get time-based greeting
+// Constants
+const MAX_URGENT_ITEMS_DISPLAY = 5;
+const GREETING_HOURS = {
+  MORNING: 12,
+  AFTERNOON: 17,
+} as const;
+
+const TIME_THRESHOLDS = {
+  MINUTE: 60000,
+  HOUR: 3600000,
+  DAY: 86400000,
+} as const;
+
+// Utility functions (memoized outside component)
 const getGreeting = (): string => {
   const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
+  if (hour < GREETING_HOURS.MORNING) return 'Good morning';
+  if (hour < GREETING_HOURS.AFTERNOON) return 'Good afternoon';
   return 'Good evening';
 };
 
-// Format relative time
 const getTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
 
-  if (diffMins < 1) return 'Just now';
+  if (diffMs < TIME_THRESHOLDS.MINUTE) return 'Just now';
+
+  const diffMins = Math.floor(diffMs / TIME_THRESHOLDS.MINUTE);
   if (diffMins < 60) return `${diffMins} min ago`;
+
+  const diffHours = Math.floor(diffMs / TIME_THRESHOLDS.HOUR);
   if (diffHours < 24) return `${diffHours}h ago`;
+
   return `${Math.floor(diffHours / 24)}d ago`;
+};
+
+const formatDate = (): string => {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  };
+  return now.toLocaleDateString('en-US', options);
 };
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
-  const { user } = useAuthStore();
+
+  // Store selectors - optimized to prevent unnecessary re-renders
+  const user = useAuthStore(state => state.user);
   const {
     stats,
     isLoading,
@@ -48,160 +75,186 @@ export const HomeScreen: React.FC = () => {
     fetchDashboard,
     refreshDashboard,
   } = useHomeStore();
+
   const {
-    complaints: urgentComplaints,
-    actionItems: urgentActionItems,
     fetchUrgent,
     refreshUrgent,
   } = useUrgentStore();
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchDashboard();
-    fetchUrgent();
-  }, []);
+  // Optimized selectors - only subscribe to specific data
+  const urgentItems = useUrgentStore(state => state.getUrgentItems());
+  const urgentCount = useUrgentStore(state => state.getUrgentCount());
 
-  // Auto-refresh on focus
-  useFocusEffect(
-    useCallback(() => {
-      refreshDashboard();
-      refreshUrgent();
-    }, [])
+  const {
+    getUnreadCount,
+    fetchNotifications,
+  } = useNotificationsStore();
+
+  const unreadCount = getUnreadCount();
+
+  // Memoized computed values
+  const hasUrgentItems = useMemo(() => urgentCount > 0, [urgentCount]);
+
+  const displayedUrgentItems = useMemo(
+    () => urgentItems.slice(0, MAX_URGENT_ITEMS_DISPLAY),
+    [urgentItems]
   );
 
-  const handleRefresh = useCallback(() => {
-    refreshDashboard();
-    refreshUrgent();
-  }, []);
+  const pendingCount = useMemo(
+    () => stats?.complaints.by_status.pending ?? 0,
+    [stats?.complaints.by_status.pending]
+  );
 
-  const handleScanQR = () => {
-    navigation.navigate('QRScanner');
-  };
+  // Initial data fetch
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        await Promise.all([
+          fetchDashboard(),
+          fetchUrgent(),
+          fetchNotifications(),
+        ]);
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+      }
+    };
 
-  const handleViewAllComplaints = () => {
+    loadInitialData();
+  }, [fetchDashboard, fetchUrgent, fetchNotifications]);
+
+  // Auto-refresh on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      const refreshData = async () => {
+        try {
+          await Promise.all([
+            refreshDashboard(),
+            refreshUrgent(),
+            fetchNotifications(),
+          ]);
+        } catch (error) {
+          console.error('Failed to refresh data:', error);
+        }
+      };
+
+      refreshData();
+    }, [refreshDashboard, refreshUrgent, fetchNotifications])
+  );
+
+  // Optimized handlers with useCallback
+  const handleRefresh = useCallback(async () => {
+    try {
+      await Promise.all([
+        refreshDashboard(),
+        refreshUrgent(),
+      ]);
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    }
+  }, [refreshDashboard, refreshUrgent]);
+
+  const handleViewAllComplaints = useCallback(() => {
     navigation.navigate('Complaints', { screen: 'ComplaintsList' });
-  };
+  }, [navigation]);
 
-  const handleViewAllTasks = () => {
-    navigation.navigate('Actions', { screen: 'ActionItemsList' });
-  };
+  const handleViewAllTasks = useCallback(() => {
+    navigation.navigate('Followups', { screen: 'FollowupsList' });
+  }, [navigation]);
 
-  const handleComplaintPress = (complaint: Complaint) => {
+  const handleAnalytics = useCallback(() => {
+    navigation.navigate('Analytics');
+  }, [navigation]);
+
+  const handleComplaintPress = useCallback((item: ComplaintWithActions) => {
     navigation.navigate('Complaints', {
       screen: 'ComplaintDetail',
-      params: { id: complaint._id },
+      params: { id: item.complaint._id, initialData: item },
     });
-  };
+  }, [navigation]);
 
-  const handleTaskPress = (task: ActionItem) => {
-    navigation.navigate('Actions', {
-      screen: 'ActionItemDetail',
-      params: { id: task._id },
-    });
-  };
-
-  const handleNotificationsPress = () => {
+  const handleNotificationsPress = useCallback(() => {
     navigation.navigate('Notifications');
-  };
+  }, [navigation]);
 
-  const handleSettingsPress = () => {
+  const handleSettingsPress = useCallback(() => {
     navigation.navigate('Settings');
-  };
+  }, [navigation]);
 
-  // Calculate totals for summary
-  const totalUrgentItems = urgentComplaints.length + urgentActionItems.length;
-  const hasUrgentItems = totalUrgentItems > 0;
-
-  const renderHeader = () => (
+  // Render functions - memoized with useCallback
+  const renderHeader = useCallback(() => (
     <View style={styles.header}>
-      <View style={styles.headerLeft}>
-        <Text style={styles.greetingText}>{getGreeting()},</Text>
-        <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Manager'}</Text>
-        {stats && (
-          <View style={styles.storeInfo}>
-            <Ionicons name="storefront" size={14} color={colors.primary[500]} />
-            <Text style={styles.storeName}>
-              {stats.storeName} #{stats.storeNumber}
-            </Text>
-          </View>
-        )}
+      <View>
+        <View style={styles.storeTitleRow}>
+          <Ionicons name="storefront-outline" size={18} color={colors.text.primary} />
+          <Text style={styles.headerTitle}>
+            {stats?.store_info.store_name || 'Store'}
+          </Text>
+        </View>
+
+        <Text style={styles.headerSubtitle}>
+          {getGreeting()} • {user?.name || 'Manager'}
+        </Text>
       </View>
+
       <View style={styles.headerRight}>
         <TouchableOpacity
-          style={styles.headerIcon}
           onPress={handleNotificationsPress}
           activeOpacity={0.7}
+          accessibilityLabel="Notifications"
+          accessibilityHint={unreadCount > 0 ? `${unreadCount} unread notifications` : undefined}
         >
-          <Ionicons name="notifications-outline" size={22} color={colors.text.secondary} />
+          <View style={styles.notificationIcon}>
+            <Ionicons name="notifications-outline" size={22} color="#000" />
+            {unreadCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </View>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={styles.headerIcon}
           onPress={handleSettingsPress}
           activeOpacity={0.7}
+          accessibilityLabel="Settings"
         >
-          <Ionicons name="settings-outline" size={22} color={colors.text.secondary} />
+          <Ionicons name="settings-outline" size={22} color="#000" />
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ), [stats?.store_info.store_name, user?.name, urgentCount, handleNotificationsPress, handleSettingsPress]);
 
-  const renderStatusSummary = () => {
-    if (!hasUrgentItems) {
-      return (
-        <View style={styles.statusCard}>
-          <View style={styles.statusIconContainer}>
-            <Ionicons name="checkmark-circle" size={32} color={colors.success[500]} />
-          </View>
-          <View style={styles.statusContent}>
-            <Text style={styles.statusTitle}>All caught up!</Text>
-            <Text style={styles.statusDescription}>
-              No urgent items need your attention right now.
-            </Text>
-          </View>
-        </View>
-      );
-    }
+  const renderStatusSummary = useCallback(() => {
+    if (!hasUrgentItems) return null;
 
     return (
-      <View style={[styles.statusCard, styles.statusCardUrgent]}>
-        <View style={[styles.statusIconContainer, styles.statusIconUrgent]}>
-          <Ionicons name="alert-circle" size={32} color={colors.error[500]} />
-        </View>
-        <View style={styles.statusContent}>
-          <Text style={styles.statusTitle}>
-            {totalUrgentItems} item{totalUrgentItems > 1 ? 's' : ''} need attention
+      <View style={styles.urgentBanner}>
+        <View>
+          <Text style={styles.urgentTitle}>
+            URGENT: {urgentCount} Active Complaint{urgentCount !== 1 ? 's' : ''}
           </Text>
-          <Text style={styles.statusDescription}>
-            {urgentComplaints.length > 0 && `${urgentComplaints.length} complaint${urgentComplaints.length > 1 ? 's' : ''}`}
-            {urgentComplaints.length > 0 && urgentActionItems.length > 0 && ' and '}
-            {urgentActionItems.length > 0 && `${urgentActionItems.length} task${urgentActionItems.length > 1 ? 's' : ''}`}
-            {' '}require immediate action.
+          <Text style={styles.urgentSubtitle}>
+            {urgentCount} complaint{urgentCount !== 1 ? 's' : ''} require immediate action
           </Text>
         </View>
+
+        <TouchableOpacity
+          style={styles.urgentButton}
+          onPress={handleViewAllComplaints}
+          activeOpacity={0.7}
+          accessibilityLabel={`View all ${urgentCount} urgent complaints`}
+        >
+          <Text style={styles.urgentButtonText}>
+            View All Complaints
+          </Text>
+        </TouchableOpacity>
       </View>
     );
-  };
+  }, [hasUrgentItems, urgentCount, handleViewAllComplaints]);
 
-  const renderScanButton = () => (
-    <TouchableOpacity
-      style={styles.scanButton}
-      onPress={handleScanQR}
-      activeOpacity={0.8}
-    >
-      <View style={styles.scanIconContainer}>
-        <Ionicons name="scan" size={32} color={colors.white} />
-      </View>
-      <View style={styles.scanTextContainer}>
-        <Text style={styles.scanTitle}>Scan QR Code</Text>
-        <Text style={styles.scanSubtitle}>Look up a complaint instantly</Text>
-      </View>
-      <View style={styles.scanArrow}>
-        <Ionicons name="arrow-forward" size={20} color={colors.white} />
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderQuickActions = () => (
+  const renderQuickActions = useCallback(() => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Quick Actions</Text>
       <View style={styles.quickActionsRow}>
@@ -209,14 +262,16 @@ export const HomeScreen: React.FC = () => {
           style={styles.quickAction}
           onPress={handleViewAllComplaints}
           activeOpacity={0.7}
+          accessibilityLabel="View complaints"
+          accessibilityHint={pendingCount > 0 ? `${pendingCount} pending complaints` : undefined}
         >
           <View style={[styles.quickActionIcon, { backgroundColor: colors.warning[50] }]}>
             <Ionicons name="chatbubble-ellipses" size={24} color={colors.warning[500]} />
           </View>
           <Text style={styles.quickActionLabel}>View Complaints</Text>
-          {(stats?.pendingComplaints ?? 0) > 0 && (
+          {pendingCount > 0 && (
             <View style={styles.quickActionBadge}>
-              <Text style={styles.quickActionBadgeText}>{stats?.pendingComplaints}</Text>
+              <Text style={styles.quickActionBadgeText}>{pendingCount}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -225,22 +280,24 @@ export const HomeScreen: React.FC = () => {
           style={styles.quickAction}
           onPress={handleViewAllTasks}
           activeOpacity={0.7}
+          accessibilityLabel="Follow-ups"
         >
           <View style={[styles.quickActionIcon, { backgroundColor: colors.info[50] }]}>
             <Ionicons name="checkbox" size={24} color={colors.info[500]} />
           </View>
-          <Text style={styles.quickActionLabel}>View Tasks</Text>
-          {(stats?.urgentActionItems ?? 0) > 0 && (
-            <View style={[styles.quickActionBadge, { backgroundColor: colors.error[500] }]}>
-              <Text style={styles.quickActionBadgeText}>{stats?.urgentActionItems}</Text>
+          <Text style={styles.quickActionLabel}>Follow-ups</Text>
+          {stats && stats.pending_followups > 0 && (
+            <View style={[styles.quickActionBadge, { backgroundColor: colors.info[500] }]}>
+              <Text style={styles.quickActionBadgeText}>{stats.pending_followups}</Text>
             </View>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.quickAction}
-          onPress={() => navigation.navigate('Analytics')}
+          onPress={handleAnalytics}
           activeOpacity={0.7}
+          accessibilityLabel="Analytics"
         >
           <View style={[styles.quickActionIcon, { backgroundColor: colors.primary[50] }]}>
             <Ionicons name="stats-chart" size={24} color={colors.primary[500]} />
@@ -249,91 +306,46 @@ export const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
     </View>
-  );
+  ), [pendingCount, handleViewAllComplaints, handleViewAllTasks, handleAnalytics]);
 
-  const renderUrgentComplaint = (complaint: Complaint) => (
-    <TouchableOpacity
-      key={complaint._id}
-      style={styles.urgentItem}
-      onPress={() => handleComplaintPress(complaint)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.urgentItemIcon}>
-        <Ionicons name="chatbubble-ellipses" size={20} color={colors.error[500]} />
-      </View>
-      <View style={styles.urgentItemContent}>
-        <View style={styles.urgentItemHeader}>
-          <Text style={styles.urgentItemType} numberOfLines={1}>
-            {complaint.complaint_type}
-          </Text>
-          <UrgencyChip level={complaint.complaint_severity} type="severity" size="sm" />
-        </View>
-        <Text style={styles.urgentItemCustomer} numberOfLines={1}>
-          {complaint.customer.name} - {complaint.store.name}
-        </Text>
-        <View style={styles.urgentItemFooter}>
-          <StatusChip status={complaint.status} size="sm" />
-          <Text style={styles.urgentItemTime}>{getTimeAgo(complaint.created_at)}</Text>
-        </View>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
-    </TouchableOpacity>
-  );
-
-  const renderUrgentTask = (task: ActionItem) => {
-    const isOverdue = new Date(task.due_at) < new Date() &&
-      task.status !== 'completed' && task.status !== 'dismissed';
+  const renderUrgentItem = useCallback((item: UrgentItem) => {
+    const data = item.item as ComplaintWithActions;
+    const { complaint, action_items_count } = data;
 
     return (
       <TouchableOpacity
-        key={task._id}
+        key={complaint._id}
         style={styles.urgentItem}
-        onPress={() => handleTaskPress(task)}
+        onPress={() => handleComplaintPress(data)}
         activeOpacity={0.7}
+        accessibilityLabel={`Urgent complaint: ${complaint.complaint_type}`}
+        accessibilityHint={`${action_items_count} tasks, created ${getTimeAgo(complaint.created_at)}`}
       >
-        <View style={[styles.urgentItemIcon, isOverdue && styles.urgentItemIconOverdue]}>
-          <Ionicons
-            name={isOverdue ? 'time' : 'flash'}
-            size={20}
-            color={isOverdue ? colors.error[600] : colors.warning[500]}
-          />
+        <View style={styles.urgentItemIcon}>
+          <Ionicons name="chatbubble-ellipses" size={20} color={colors.error[500]} />
         </View>
         <View style={styles.urgentItemContent}>
           <View style={styles.urgentItemHeader}>
             <Text style={styles.urgentItemType} numberOfLines={1}>
-              {task.title}
+              {complaint.complaint_type}
             </Text>
-            <UrgencyChip level={task.urgency} size="sm" />
+            <UrgencyChip level={complaint.complaint_severity} type="severity" size="sm" />
           </View>
           <Text style={styles.urgentItemCustomer} numberOfLines={1}>
-            {task.description}
+            {complaint.customer.name} • {action_items_count} task{action_items_count !== 1 ? 's' : ''}
           </Text>
           <View style={styles.urgentItemFooter}>
-            {isOverdue ? (
-              <View style={styles.overdueTag}>
-                <Text style={styles.overdueText}>Overdue</Text>
-              </View>
-            ) : (
-              <StatusChip status={task.status} size="sm" />
-            )}
-            <Text style={styles.urgentItemTime}>{getTimeAgo(task.created_at)}</Text>
+            <StatusChip status={complaint.status} size="sm" />
+            <Text style={styles.urgentItemTime}>{getTimeAgo(complaint.created_at)}</Text>
           </View>
         </View>
         <Ionicons name="chevron-forward" size={20} color={colors.gray[400]} />
       </TouchableOpacity>
     );
-  };
+  }, [handleComplaintPress]);
 
-  const renderUrgentList = () => {
+  const renderUrgentList = useCallback(() => {
     if (!hasUrgentItems) return null;
-
-    // Combine and limit to 5 items
-    const allUrgentItems = [
-      ...urgentComplaints.map(c => ({ type: 'complaint' as const, item: c, date: c.created_at })),
-      ...urgentActionItems.map(a => ({ type: 'task' as const, item: a, date: a.created_at })),
-    ]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 5);
 
     return (
       <View style={styles.section}>
@@ -342,58 +354,151 @@ export const HomeScreen: React.FC = () => {
             <Ionicons name="alert-circle" size={20} color={colors.error[500]} />
             <Text style={styles.sectionTitle}>Needs Your Attention</Text>
           </View>
-          <TouchableOpacity onPress={handleViewAllTasks}>
+          <TouchableOpacity onPress={handleViewAllComplaints}>
             <Text style={styles.viewAllLink}>View All</Text>
           </TouchableOpacity>
         </View>
 
         <Card style={styles.urgentCard}>
-          {allUrgentItems.map((item) => (
-            item.type === 'complaint'
-              ? renderUrgentComplaint(item.item as Complaint)
-              : renderUrgentTask(item.item as ActionItem)
-          ))}
+          {displayedUrgentItems.map(renderUrgentItem)}
         </Card>
       </View>
     );
-  };
+  }, [hasUrgentItems, displayedUrgentItems, renderUrgentItem, handleViewAllComplaints]);
 
-  const renderTodayStats = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Today's Summary</Text>
-      <View style={styles.todayStatsCard}>
-        <View style={styles.todayStat}>
-          <View style={[styles.todayStatIcon, { backgroundColor: colors.info[50] }]}>
-            <Ionicons name="call" size={20} color={colors.info[500]} />
-          </View>
-          <Text style={styles.todayStatValue}>{stats?.todaysCalls ?? 0}</Text>
-          <Text style={styles.todayStatLabel}>Calls Today</Text>
+  const renderTodayStats = useCallback(() => {
+    const totalComplaints = stats?.complaints.total ?? 0;
+    const resolvedComplaints = stats?.complaints.by_status.resolved ?? 0;
+    const pendingComplaints = stats?.complaints.by_status.pending ?? 0;
+    const slaPercentage = stats?.sla_percentage ?? 0;
+    const todayCalls = stats?.today_calls ?? 0;
+
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Today's Summary</Text>
+          <Text style={styles.dateText}>{formatDate()}</Text>
         </View>
 
-        <View style={styles.todayStatDivider} />
+        <Card style={styles.statsCard}>
+          {/* Main Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={styles.statBlock}>
+              <Text style={styles.statNumber}>
+                {totalComplaints}
+              </Text>
+              <Text style={styles.statLabel}>Total Cases</Text>
+            </View>
 
-        <View style={styles.todayStat}>
-          <View style={[styles.todayStatIcon, { backgroundColor: colors.success[50] }]}>
-            <Ionicons name="checkmark-circle" size={20} color={colors.success[500]} />
+            <View style={styles.statDivider} />
+
+            <View style={styles.statBlock}>
+              <Text style={[styles.statNumber, styles.resolvedStatNumber]}>
+                {resolvedComplaints}
+              </Text>
+              <Text style={styles.statLabel}>Resolved</Text>
+            </View>
+
+            <View style={styles.statDivider} />
+
+            <View style={styles.statBlock}>
+              <Text style={[styles.statNumber, styles.pendingStatNumber]}>
+                {pendingComplaints}
+              </Text>
+              <Text style={styles.statLabel}>Pending</Text>
+            </View>
           </View>
-          <Text style={styles.todayStatValue}>{stats?.complaintsResolvedToday ?? 0}</Text>
-          <Text style={styles.todayStatLabel}>Resolved</Text>
-        </View>
 
-        <View style={styles.todayStatDivider} />
+          {/* Divider */}
+          <View style={styles.horizontalDivider} />
 
-        <View style={styles.todayStat}>
-          <View style={[styles.todayStatIcon, { backgroundColor: colors.warning[50] }]}>
-            <Ionicons name="hourglass" size={20} color={colors.warning[500]} />
+          {/* Bottom Info Row */}
+          <View style={styles.bottomInfoRow}>
+            <View style={styles.infoItem}>
+              <Ionicons name="call-outline" size={16} color={colors.info[600]} />
+              <Text style={styles.infoText}>
+                {todayCalls} call{todayCalls !== 1 ? 's' : ''} today
+              </Text>
+            </View>
+
+            <View style={styles.infoDivider} />
+
+            <View style={styles.infoItem}>
+              <Ionicons name="bar-chart" size={16} color={colors.success[600]} />
+              <Text style={styles.infoText}>
+                {slaPercentage}% within SLA
+              </Text>
+            </View>
           </View>
-          <Text style={styles.todayStatValue}>{stats?.pendingComplaints ?? 0}</Text>
-          <Text style={styles.todayStatLabel}>Pending</Text>
+        </Card>
+      </View>
+    );
+  }, [stats]);
+
+  const renderAllCaughtUp = useCallback(() => {
+    if (hasUrgentItems) return null;
+
+    return (
+      <View style={styles.section}>
+        <Card style={styles.caughtUpCard}>
+          <View style={styles.caughtUpIconContainer}>
+            <Ionicons name="checkmark-circle" size={48} color={colors.success[500]} />
+          </View>
+          <Text style={styles.caughtUpTitle}>All caught up!</Text>
+          <Text style={styles.caughtUpDescription}>
+            No urgent items need your attention right now. Keep up the great work!
+          </Text>
+        </Card>
+      </View>
+    );
+  }, [hasUrgentItems]);
+
+  const renderRecentActivity = useCallback(() => {
+    if (hasUrgentItems) return null;
+
+    const recentStats = [
+      {
+        icon: 'trending-up',
+        label: 'Resolution Rate',
+        value: `${stats?.sla_percentage ?? 0}%`,
+        color: colors.success[500],
+        bgColor: colors.success[50],
+      },
+      {
+        icon: 'time-outline',
+        label: 'Avg Response Time',
+        value: stats?.avg_response_time ?? '--',
+        color: colors.info[500],
+        bgColor: colors.info[50],
+      },
+      {
+        icon: 'people-outline',
+        label: 'Customer Satisfaction',
+        value: stats?.customer_satisfaction ?? '--',
+        color: colors.warning[500],
+        bgColor: colors.warning[50],
+      },
+    ];
+
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Performance Insights</Text>
+        <View style={styles.insightsGrid}>
+          {recentStats.map((stat, index) => (
+            <Card key={index} style={styles.insightCard}>
+              <View style={[styles.insightIcon, { backgroundColor: stat.bgColor }]}>
+                <Ionicons name={stat.icon as any} size={20} color={stat.color} />
+              </View>
+              <Text style={styles.insightValue}>{stat.value}</Text>
+              <Text style={styles.insightLabel}>{stat.label}</Text>
+            </Card>
+          ))}
         </View>
       </View>
-    </View>
-  );
+    );
+  }, [hasUrgentItems, stats?.sla_percentage]);
 
-  const renderSkeleton = () => (
+  const renderSkeleton = useCallback(() => (
     <View style={styles.skeletonContainer}>
       <View style={styles.skeletonHeader}>
         <View style={styles.skeletonTextLarge} />
@@ -407,8 +512,9 @@ export const HomeScreen: React.FC = () => {
       </View>
       <CardSkeleton style={styles.skeletonCard} />
     </View>
-  );
+  ), []);
 
+  // Loading state
   if (isLoading && !stats) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -420,6 +526,7 @@ export const HomeScreen: React.FC = () => {
     );
   }
 
+  // Main render
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
@@ -437,10 +544,11 @@ export const HomeScreen: React.FC = () => {
       >
         {renderHeader()}
         {renderStatusSummary()}
-        {renderScanButton()}
         {renderTodayStats()}
         {renderQuickActions()}
         {renderUrgentList()}
+        {renderAllCaughtUp()}
+        {renderRecentActivity()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -465,129 +573,73 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: spacing.lg,
   },
-  headerLeft: {
-    flex: 1,
+  storeTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.semibold,
+    color: colors.text.primary,
+  },
+  headerSubtitle: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.white,
+  notificationIcon: {
+    position: 'relative',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: colors.error[500],
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
-    ...cardShadow,
+    paddingHorizontal: 4,
   },
-  greetingText: {
-    fontSize: fontSizes.sm,
-    color: colors.text.secondary,
-  },
-  userName: {
-    fontSize: fontSizes['2xl'],
-    fontWeight: fontWeights.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  storeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    backgroundColor: colors.primary[50],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.full,
-    alignSelf: 'flex-start',
-  },
-  storeName: {
-    fontSize: fontSizes.xs,
-    color: colors.primary[700],
-    fontWeight: fontWeights.medium,
-  },
-  // Status Summary
-  statusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.success[50],
-    padding: spacing.lg,
-    borderRadius: borderRadius.lg,
-    marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.success[100],
-  },
-  statusCardUrgent: {
-    backgroundColor: colors.error[50],
-    borderColor: colors.error[100],
-  },
-  statusIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.success[100],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  statusIconUrgent: {
-    backgroundColor: colors.error[100],
-  },
-  statusContent: {
-    flex: 1,
-  },
-  statusTitle: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.semibold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-  },
-  statusDescription: {
-    fontSize: fontSizes.sm,
-    color: colors.text.secondary,
-    lineHeight: fontSizes.sm * 1.4,
-  },
-  // Scan Button
-  scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary[600],
-    padding: spacing.lg,
-    borderRadius: borderRadius.xl,
-    marginBottom: spacing.xl,
-    ...cardShadow,
-  },
-  scanIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.primary[500],
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  scanTextContainer: {
-    flex: 1,
-  },
-  scanTitle: {
-    fontSize: fontSizes.lg,
-    fontWeight: fontWeights.bold,
+  notificationBadgeText: {
     color: colors.white,
-    marginBottom: spacing.xs,
+    fontSize: 10,
+    fontWeight: fontWeights.bold,
   },
-  scanSubtitle: {
+  urgentBanner: {
+    backgroundColor: colors.error[600],
+    borderRadius: borderRadius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  urgentTitle: {
+    color: colors.white,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+    marginBottom: 4,
+  },
+  urgentSubtitle: {
+    color: colors.error[100],
     fontSize: fontSizes.sm,
-    color: colors.primary[100],
   },
-  scanArrow: {
-    width: 36,
-    height: 36,
+  urgentButton: {
+    backgroundColor: colors.white,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.primary[500],
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  // Sections
+  urgentButtonText: {
+    color: colors.error[600],
+    fontWeight: fontWeights.semibold,
+    fontSize: fontSizes.sm,
+  },
   section: {
     marginBottom: spacing.xl,
   },
@@ -606,14 +658,76 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
     color: colors.text.primary,
-    marginBottom: spacing.xs,
+  },
+  dateText: {
+    fontSize: fontSizes.sm,
+    color: colors.text.muted,
   },
   viewAllLink: {
     fontSize: fontSizes.sm,
     color: colors.primary[600],
     fontWeight: fontWeights.medium,
   },
-  // Quick Actions
+  statsCard: {
+    padding: spacing.lg,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: 28,
+    fontWeight: fontWeights.bold,
+    color: colors.text.primary,
+  },
+  resolvedStatNumber: {
+    color: colors.success[600],
+  },
+  pendingStatNumber: {
+    color: colors.warning[600],
+  },
+  statLabel: {
+    fontSize: fontSizes.sm,
+    color: colors.text.muted,
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border.light,
+    marginHorizontal: spacing.sm,
+  },
+  horizontalDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing.md,
+  },
+  bottomInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  infoText: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+  },
+  infoDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: colors.border.light,
+  },
   quickActionsRow: {
     flexDirection: 'row',
     gap: spacing.md,
@@ -657,7 +771,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: fontWeights.bold,
   },
-  // Urgent List
   urgentCard: {
     padding: 0,
     overflow: 'hidden',
@@ -666,7 +779,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border.light,
   },
   urgentItemIcon: {
@@ -677,9 +790,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
-  },
-  urgentItemIconOverdue: {
-    backgroundColor: colors.error[100],
   },
   urgentItemContent: {
     flex: 1,
@@ -712,30 +822,41 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.text.muted,
   },
-  overdueTag: {
-    backgroundColor: colors.error[100],
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 2,
-    borderRadius: borderRadius.sm,
-  },
-  overdueText: {
-    fontSize: fontSizes.xs,
-    color: colors.error[700],
-    fontWeight: fontWeights.semibold,
-  },
-  // Today Stats
-  todayStatsCard: {
-    flexDirection: 'row',
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    ...cardShadow,
-  },
-  todayStat: {
-    flex: 1,
+  caughtUpCard: {
+    padding: spacing.xl,
     alignItems: 'center',
   },
-  todayStatIcon: {
+  caughtUpIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.success[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  caughtUpTitle: {
+    fontSize: fontSizes.xl,
+    fontWeight: fontWeights.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
+  },
+  caughtUpDescription: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  insightsGrid: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  insightCard: {
+    flex: 1,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  insightIcon: {
     width: 40,
     height: 40,
     borderRadius: borderRadius.full,
@@ -743,24 +864,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  todayStatValue: {
-    fontSize: fontSizes.xl,
+  insightValue: {
+    fontSize: fontSizes.lg,
     fontWeight: fontWeights.bold,
     color: colors.text.primary,
     marginBottom: spacing.xs,
   },
-  todayStatLabel: {
+  insightLabel: {
     fontSize: fontSizes.xs,
     color: colors.text.muted,
     textAlign: 'center',
   },
-  todayStatDivider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: colors.border.light,
-    marginHorizontal: spacing.md,
-  },
-  // Skeleton
   skeletonContainer: {
     gap: spacing.lg,
   },

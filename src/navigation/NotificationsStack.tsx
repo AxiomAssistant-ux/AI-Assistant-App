@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   NotificationsScreen,
   ComplaintDetailScreen,
-  ActionItemDetailScreen,
+  FollowupDetailScreen,
 } from '../screens';
 import { NotificationsStackParamList } from './types';
 
@@ -18,7 +18,7 @@ export const NotificationsStack: React.FC = () => {
     >
       <Stack.Screen name="NotificationsList" component={NotificationsScreen} />
       <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
-      <Stack.Screen name="ActionItemDetail" component={ActionItemDetailScreen} />
+      <Stack.Screen name="FollowupDetail" component={FollowupDetailScreen} />
     </Stack.Navigator>
   );
 };

@@ -20,96 +20,64 @@ import {
   Badge,
   Avatar,
 } from '../components';
-import { UrgentItem, Complaint, ActionItem } from '../lib/types';
+import { UrgentItem, Complaint, ActionItem, ComplaintWithActions } from '../lib/types';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
 const UrgentItemCard: React.FC<{
   item: UrgentItem;
   onPress: () => void;
 }> = ({ item, onPress }) => {
-  const isComplaint = item.type === 'complaint';
-  const data = item.item;
+  const data = item.item as ComplaintWithActions;
+  const { complaint, action_items_count, urgent_count } = data;
 
-  if (isComplaint) {
-    const complaint = data as Complaint;
-    return (
-      <Card variant="elevated" onPress={onPress} style={styles.card}>
-        <View style={styles.cardHeader}>
-          <View style={styles.typeIndicator}>
-            <Ionicons name="chatbubble-ellipses" size={14} color={colors.error[500]} />
-            <Text style={styles.typeLabel}>Complaint</Text>
-          </View>
-          <UrgencyChip level={complaint.complaint_severity} type="severity" size="sm" />
-        </View>
-
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {complaint.complaint_type}
-        </Text>
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {complaint.complaint_description}
-        </Text>
-
-        <View style={styles.cardMeta}>
-          <View style={styles.customerInfo}>
-            <Avatar name={complaint.customer.name} size="xs" />
-            <Text style={styles.customerName} numberOfLines={1}>
-              {complaint.customer.name}
-            </Text>
-          </View>
-          <StatusChip status={complaint.status} size="sm" />
-        </View>
-
-        <View style={styles.cardFooter}>
-          <View style={styles.storeInfo}>
-            <Ionicons name="storefront-outline" size={14} color={colors.gray[400]} />
-            <Text style={styles.storeName} numberOfLines={1}>
-              {complaint.store.name}
-            </Text>
-          </View>
-          <Text style={styles.timeAgo}>
-            {getTimeAgo(complaint.created_at)}
-          </Text>
-        </View>
-      </Card>
-    );
-  }
-
-  const actionItem = data as ActionItem;
   return (
     <Card variant="elevated" onPress={onPress} style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.typeIndicator}>
-          <Ionicons name="flash" size={14} color={colors.warning[500]} />
-          <Text style={styles.typeLabel}>Action Item</Text>
+          <Ionicons name="chatbubble-ellipses" size={14} color={colors.error[500]} />
+          <Text style={styles.typeLabel}>Complaint</Text>
         </View>
-        <UrgencyChip level={actionItem.urgency} size="sm" />
+        <UrgencyChip level={complaint.complaint_severity} type="severity" size="sm" />
       </View>
 
       <Text style={styles.cardTitle} numberOfLines={1}>
-        {actionItem.title}
+        {complaint.complaint_type}
       </Text>
       <Text style={styles.cardDescription} numberOfLines={2}>
-        {actionItem.description}
+        {complaint.complaint_description}
       </Text>
 
       <View style={styles.cardMeta}>
-        <Badge
-          label={formatActionType(actionItem.type)}
-          variant="primary"
-          size="sm"
-        />
-        <StatusChip status={actionItem.status} size="sm" />
+        <View style={styles.customerInfo}>
+          <Avatar name={complaint.customer.name} size="xs" />
+          <Text style={styles.customerName} numberOfLines={1}>
+            {complaint.customer.name}
+          </Text>
+        </View>
+        <StatusChip status={complaint.status} size="sm" />
       </View>
 
+      {action_items_count > 0 && (
+        <View style={styles.tasksSummary}>
+          <View style={styles.taskLabelContainer}>
+            <Ionicons name="list" size={14} color={colors.primary[600]} />
+            <Text style={styles.taskCountText}>
+              {action_items_count} Task{action_items_count !== 1 ? 's' : ''}
+              {urgent_count > 0 ? ` (${urgent_count} Urgent)` : ''}
+            </Text>
+          </View>
+        </View>
+      )}
+
       <View style={styles.cardFooter}>
-        <View style={styles.dueInfo}>
-          <Ionicons name="time-outline" size={14} color={colors.gray[400]} />
-          <Text style={styles.dueText}>
-            Due {formatDueDate(actionItem.due_at)}
+        <View style={styles.storeInfo}>
+          <Ionicons name="storefront-outline" size={14} color={colors.gray[400]} />
+          <Text style={styles.storeName} numberOfLines={1}>
+            {complaint.store.name}
           </Text>
         </View>
         <Text style={styles.timeAgo}>
-          {getTimeAgo(actionItem.created_at)}
+          {getTimeAgo(complaint.created_at)}
         </Text>
       </View>
     </Card>
@@ -171,11 +139,11 @@ export const UrgentScreen: React.FC = () => {
   }, []);
 
   const handleItemPress = (item: UrgentItem) => {
-    if (item.type === 'complaint') {
-      navigation.navigate('ComplaintDetail', { id: item.item._id });
-    } else {
-      navigation.navigate('ActionItemDetail', { id: item.item._id });
-    }
+    const data = item.item as ComplaintWithActions;
+    navigation.navigate('ComplaintDetail', {
+      id: data.complaint._id,
+      initialData: data
+    });
   };
 
   const renderItem = ({ item }: { item: UrgentItem }) => (
@@ -219,7 +187,7 @@ export const UrgentScreen: React.FC = () => {
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={urgentItems}
-        keyExtractor={(item) => `${item.type}_${item.item._id}`}
+        keyExtractor={(item) => `urgent_${(item.item as any).complaint._id}`}
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
@@ -382,6 +350,22 @@ const styles = StyleSheet.create({
   },
   skeletonCard: {
     marginBottom: spacing.md,
+  },
+  tasksSummary: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+  },
+  taskLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  taskCountText: {
+    fontSize: fontSizes.xs,
+    color: colors.primary[700],
+    fontWeight: fontWeights.medium,
   },
 });
 

@@ -28,11 +28,11 @@ interface ResolveComplaintModalProps {
 }
 
 const compensationOptions = [
-  { value: 'voucher_10', label: '$10 Voucher' },
-  { value: 'voucher_25', label: '$25 Voucher' },
-  { value: 'voucher_50', label: '$50 Voucher' },
-  { value: 'refund', label: 'Full Refund' },
-  { value: 'replacement', label: 'Product Replacement' },
+  // { value: 'voucher_10', label: '$10 Voucher' },
+  // { value: 'voucher_25', label: '$25 Voucher' },
+  // { value: 'voucher_50', label: '$50 Voucher' },
+  { value: 'coupon', label: 'Coupon' },
+  { value: 'replacement', label: 'Order Replacement' },
   { value: 'none', label: 'No Compensation' },
 ];
 
@@ -81,8 +81,8 @@ export const ResolveComplaintModal: React.FC<ResolveComplaintModalProps> = ({
   };
 
   const isValid = compensation === 'custom'
-    ? customCompensation.trim().length > 0
-    : compensation.length > 0;
+    ? (customCompensation || '').trim().length > 0
+    : (compensation || '').length > 0;
 
   return (
     <Modal
@@ -107,7 +107,7 @@ export const ResolveComplaintModal: React.FC<ResolveComplaintModalProps> = ({
             <View style={styles.headerIcon}>
               <Ionicons name="checkmark-circle" size={28} color={colors.success[500]} />
             </View>
-            <Text style={styles.title}>Resolve Complaint</Text>
+            <Text style={styles.title}>Resolve</Text>
             {complaintType && (
               <Text style={styles.subtitle} numberOfLines={1}>
                 {complaintType}

@@ -4,7 +4,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { QRScannerScreen } from '../screens/QRScannerScreen';
 import {
   ComplaintDetailScreen,
-  ActionItemDetailScreen,
+  FollowupDetailScreen,
   NotificationsScreen,
   SettingsScreen,
 } from '../screens';
@@ -22,7 +22,7 @@ export const HomeStack: React.FC = () => {
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="QRScanner" component={QRScannerScreen} />
       <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
-      <Stack.Screen name="ActionItemDetail" component={ActionItemDetailScreen} />
+      <Stack.Screen name="FollowupDetail" component={FollowupDetailScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>

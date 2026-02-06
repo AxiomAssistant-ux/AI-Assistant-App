@@ -1,21 +1,9 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-
-export interface DashboardStats {
-  storeName: string;
-  storeNumber: string;
-  todaysCalls: number;
-  pendingComplaints: number;
-  urgentActionItems: number;
-  overdueActionItems: number;
-  // Analytics snapshot
-  totalCallsThisWeek: number;
-  complaintsResolvedToday: number;
-  avgResolutionTime: string;
-}
+import { DashboardResponse } from '../lib/types';
 
 interface HomeState {
-  stats: DashboardStats | null;
+  stats: DashboardResponse | null;
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -24,18 +12,6 @@ interface HomeState {
   fetchDashboard: () => Promise<void>;
   refreshDashboard: () => Promise<void>;
 }
-
-const defaultStats: DashboardStats = {
-  storeName: '',
-  storeNumber: '',
-  todaysCalls: 0,
-  pendingComplaints: 0,
-  urgentActionItems: 0,
-  overdueActionItems: 0,
-  totalCallsThisWeek: 0,
-  complaintsResolvedToday: 0,
-  avgResolutionTime: '0h',
-};
 
 export const useHomeStore = create<HomeState>((set, get) => ({
   stats: null,

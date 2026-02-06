@@ -21,7 +21,7 @@ import {
   FilterChip,
   Avatar,
 } from '../components';
-import { Complaint, ComplaintStatus, SeverityLevel } from '../lib/types';
+import { ActionItem, Complaint, ComplaintStatus, ComplaintWithActions, SeverityLevel } from '../lib/types';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
 const statusOptions: { value: ComplaintStatus | undefined; label: string }[] = [
@@ -40,9 +40,10 @@ const severityOptions: { value: SeverityLevel | undefined; label: string }[] = [
 ];
 
 const ComplaintCard: React.FC<{
-  complaint: Complaint;
+  data: ComplaintWithActions;
   onPress: () => void;
-}> = ({ complaint, onPress }) => {
+}> = ({ data, onPress }) => {
+  const { complaint, action_items, action_items_count, urgent_count } = data;
   const isUrgent =
     (complaint.complaint_severity === 'high' || complaint.complaint_severity === 'critical') &&
     (complaint.status === 'pending' || complaint.status === 'in_progress');
@@ -82,6 +83,22 @@ const ComplaintCard: React.FC<{
             <Text style={styles.customerPhone}>{complaint.customer.phone}</Text>
           </View>
         </View>
+
+        {action_items_count > 0 && (
+          <View style={styles.tasksSummary}>
+            <View style={styles.taskLabelContainer}>
+              <Ionicons name="list" size={14} color={colors.primary[600]} />
+              <Text style={styles.taskCountText}>
+                {action_items_count} Task{action_items_count !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            {urgent_count > 0 && (
+              <View style={styles.urgentBadge}>
+                <Text style={styles.urgentBadgeText}>{urgent_count} Urgent</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.cardFooter}>
@@ -142,8 +159,11 @@ export const ComplaintsListScreen: React.FC = () => {
     }
   }, [hasMore, isLoadingMore]);
 
-  const handleComplaintPress = (complaint: Complaint) => {
-    navigation.navigate('ComplaintDetail', { id: complaint._id });
+  const handleComplaintPress = (item: ComplaintWithActions) => {
+    navigation.navigate('ComplaintDetail', {
+      id: item.complaint._id,
+      initialData: item
+    });
   };
 
   const handleStatusFilter = (status: ComplaintStatus | undefined) => {
@@ -154,8 +174,8 @@ export const ComplaintsListScreen: React.FC = () => {
     setFilters({ ...filters, severity });
   };
 
-  const renderItem = ({ item }: { item: Complaint }) => (
-    <ComplaintCard complaint={item} onPress={() => handleComplaintPress(item)} />
+  const renderItem = ({ item }: { item: ComplaintWithActions }) => (
+    <ComplaintCard data={item} onPress={() => handleComplaintPress(item)} />
   );
 
   const renderHeader = () => (
@@ -234,15 +254,12 @@ export const ComplaintsListScreen: React.FC = () => {
     );
   }
 
-  const handleScanQR = () => {
-    navigation.navigate('QRScanner');
-  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={complaints}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item.complaint._id}
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
@@ -268,11 +285,6 @@ export const ComplaintsListScreen: React.FC = () => {
           />
         }
       />
-
-      {/* QR Scan FAB */}
-      <TouchableOpacity style={styles.fab} onPress={handleScanQR} activeOpacity={0.8}>
-        <Ionicons name="qr-code-outline" size={24} color={colors.white} />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 };
@@ -412,6 +424,38 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.text.muted,
   },
+  tasksSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+  },
+  taskLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  taskCountText: {
+    fontSize: fontSizes.xs,
+    color: colors.primary[700],
+    fontWeight: fontWeights.medium,
+  },
+  urgentBadge: {
+    backgroundColor: colors.error[50],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.error[100],
+  },
+  urgentBadgeText: {
+    fontSize: 10,
+    color: colors.error[600],
+    fontWeight: fontWeights.bold,
+  },
   skeletonContainer: {
     padding: spacing.lg,
   },
@@ -420,22 +464,6 @@ const styles = StyleSheet.create({
   },
   loadingMore: {
     paddingVertical: spacing.lg,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.primary[600],
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
 

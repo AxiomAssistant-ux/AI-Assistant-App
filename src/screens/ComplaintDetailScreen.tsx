@@ -8,7 +8,6 @@ import {
   Linking,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -25,26 +24,38 @@ import {
   Avatar,
   TextArea,
   UrgentBanner,
+  Badge,
 } from '../components';
 import { ResolveComplaintModal, ResolveData } from '../components/ResolveComplaintModal';
-import { ComplaintStatus } from '../lib/types';
+import { ComplaintStatus, ComplaintWithActions, ActionItem } from '../lib/types';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 
 type RouteParams = {
-  ComplaintDetail: { id: string };
+  ComplaintDetail: { id: string, initialData?: ComplaintWithActions };
 };
 
 export const ComplaintDetailScreen: React.FC = () => {
   const route = useRoute<RouteProp<RouteParams, 'ComplaintDetail'>>();
-  const navigation = useNavigation();
-  const { id } = route.params;
+  const navigation = useNavigation<any>();
+  const { id, initialData } = route.params || {};
+
+  if (!id) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header title="Error" leftIcon="arrow-back" onLeftPress={() => navigation.goBack()} />
+        <View style={styles.centered}>
+          <Text>Invalid Complaint ID</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const {
-    selectedComplaint: complaint,
+    selectedComplaint: data,
     isLoadingDetail,
     fetchComplaint,
+    setSelectedComplaint,
     updateComplaintStatus,
-    assignComplaintToMe,
     addNote,
     resolveComplaint,
     clearSelectedComplaint,
@@ -60,31 +71,46 @@ export const ComplaintDetailScreen: React.FC = () => {
   const [isResolving, setIsResolving] = useState(false);
 
   useEffect(() => {
-    fetchComplaint(id);
+    if (initialData) {
+      setSelectedComplaint(initialData);
+    } else {
+      fetchComplaint(id);
+    }
     return () => clearSelectedComplaint();
-  }, [id]);
+  }, [id, initialData]);
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      // Fallback: If no history (e.g. from QR Scanner), go to list
+      navigation.navigate('ComplaintsList');
+    }
+  };
 
   const handleRefresh = useCallback(() => {
     fetchComplaint(id);
   }, [id]);
 
+  if (isLoadingDetail || !data) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <Header
+          title="Complaint"
+          leftIcon="arrow-back"
+          onLeftPress={handleBack}
+        />
+        <DetailSkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  const { complaint, action_items, call_summary } = data;
+
   const handleCall = () => {
-    if (complaint?.customer.phone) {
+    if (complaint.customer?.phone) {
       const phoneNumber = complaint.customer.phone.replace(/[^0-9+]/g, '');
       Linking.openURL(`tel:${phoneNumber}`);
-    }
-  };
-
-  const handleAssign = async () => {
-    setLoadingAction('assign');
-    try {
-      const updated = await assignComplaintToMe(id);
-      updateComplaintOptimistic(updated);
-      showSuccess('Complaint assigned to you');
-    } catch (error) {
-      showError('Failed to assign complaint');
-    } finally {
-      setLoadingAction(null);
     }
   };
 
@@ -92,7 +118,7 @@ export const ComplaintDetailScreen: React.FC = () => {
     setLoadingAction(status);
     try {
       const updated = await updateComplaintStatus(id, status);
-      updateComplaintOptimistic(updated);
+      fetchComplaint(id);
       showSuccess(`Status updated to ${status.replace('_', ' ')}`);
     } catch (error) {
       showError('Failed to update status');
@@ -101,14 +127,15 @@ export const ComplaintDetailScreen: React.FC = () => {
     }
   };
 
-  const handleResolve = async (data: ResolveData) => {
+  const handleResolve = async (resolveData: ResolveData) => {
     setIsResolving(true);
     try {
       const updated = await resolveComplaint(id, {
-        compensation: data.compensation,
-        resolution_notes: data.resolutionNotes,
+        complaint_id: id,
+        voucher_given: resolveData.compensation,
+        resolution_notes: resolveData.resolutionNotes || '',
       });
-      updateComplaintOptimistic(updated);
+      fetchComplaint(id);
       setShowResolveModal(false);
       showSuccess('Complaint resolved successfully');
     } catch (error) {
@@ -128,6 +155,7 @@ export const ComplaintDetailScreen: React.FC = () => {
       setNoteText('');
       setShowNoteInput(false);
       showSuccess('Note added');
+      fetchComplaint(id);
     } catch (error) {
       showError('Failed to add note');
     } finally {
@@ -135,31 +163,19 @@ export const ComplaintDetailScreen: React.FC = () => {
     }
   };
 
-  if (isLoadingDetail || !complaint) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <Header
-          title="Complaint"
-          leftIcon="arrow-back"
-          onLeftPress={() => navigation.goBack()}
-        />
-        <DetailSkeleton />
-      </SafeAreaView>
-    );
-  }
-
   const isUrgent =
-    (complaint.complaint_severity === 'high' || complaint.complaint_severity === 'critical') &&
-    (complaint.status === 'pending' || complaint.status === 'in_progress');
+    (complaint?.complaint_severity === 'high' || complaint?.complaint_severity === 'critical') &&
+    (complaint?.status === 'pending' || complaint?.status === 'in_progress');
 
-  const isResolved = complaint.status === 'resolved';
+  const isResolved = complaint?.status === 'resolved';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <Header
         title="Complaint"
         leftIcon="arrow-back"
-        onLeftPress={() => navigation.goBack()}
+        onLeftPress={handleBack}
+        subtitle={complaint?.status ? complaint.status.replace('_', ' ') : 'Detail'}
       />
 
       <KeyboardAvoidingView
@@ -180,15 +196,17 @@ export const ComplaintDetailScreen: React.FC = () => {
         >
           {isUrgent && (
             <UrgentBanner
-              level={complaint.complaint_severity}
+              level={complaint?.complaint_severity || 'medium'}
               message="This complaint requires immediate attention"
             />
           )}
 
           {/* Status & Severity */}
           <View style={styles.statusRow}>
-            <UrgencyChip level={complaint.complaint_severity} type="severity" />
-            <StatusChip status={complaint.status} />
+            {complaint?.complaint_severity && (
+              <UrgencyChip level={complaint.complaint_severity} type="severity" />
+            )}
+            {complaint?.status && <StatusChip status={complaint.status} />}
           </View>
 
           {/* Resolution Info (if resolved) */}
@@ -227,46 +245,85 @@ export const ComplaintDetailScreen: React.FC = () => {
             </Card>
           )}
 
+          {/* Call Summary Section */}
+          {/* {call_summary && (
+            <Card style={styles.section}>
+              <Text style={styles.sectionTitle}>Call Summary</Text>
+              {call_summary.summaries?.short_summary && (
+                <Text style={styles.summaryText}>{call_summary.summaries.short_summary}</Text>
+              )}
+              {call_summary.call_timing && (
+                <View style={styles.callTimingRow}>
+                  <Ionicons name="time-outline" size={14} color={colors.text.tertiary} />
+                  <Text style={styles.timingText}>
+                    Duration: {Math.floor(call_summary.call_timing.duration / 60)}m {call_summary.call_timing.duration % 60}s
+                  </Text>
+                </View>
+              )}
+              {call_summary.recording_link && (
+                <Button
+                  label="Listen to Recording"
+                  variant="ghost"
+                  size="sm"
+                  icon="play-circle-outline"
+                  onPress={() => Linking.openURL(call_summary.recording_link!)}
+                  style={styles.recordingButton}
+                />
+              )}
+            </Card>
+          )} */}
+
           {/* Type & Description */}
           <Card style={styles.section}>
-            <Text style={styles.complaintType}>{complaint.complaint_type}</Text>
-            <Text style={styles.description}>{complaint.complaint_description}</Text>
+            <Text style={styles.sectionTitle}>Complaint Details</Text>
+            <Text style={styles.complaintType}>{complaint?.complaint_type || 'General'}</Text>
+            <Text style={styles.description}>
+              {complaint?.complaint_description || 'No description provided.'}
+            </Text>
           </Card>
 
-          {/* Customer Info */}
-          <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Customer</Text>
-            <View style={styles.customerRow}>
-              <Avatar name={complaint.customer.name} size="lg" />
-              <View style={styles.customerDetails}>
-                <Text style={styles.customerName}>{complaint.customer.name}</Text>
-                <Text style={styles.customerContact}>{complaint.customer.phone}</Text>
-                {complaint.customer.email && (
-                  <Text style={styles.customerContact}>{complaint.customer.email}</Text>
-                )}
+          {/* Associated Task - Highlighted */}
+          {action_items && action_items.length > 0 && (
+            <Card style={[styles.section, styles.taskCard]}>
+              <View style={styles.taskHeader}>
+                <Ionicons name="clipboard-outline" size={20} color={colors.primary[600]} />
+                <Text style={styles.sectionTitle}>Task</Text>
               </View>
-            </View>
-          </Card>
+              {action_items.map((item) => (
+                <View key={item._id} style={styles.taskContent}>
+                  <View style={styles.taskTagRow}>
+                    <Badge label={item.type.replace('_', ' ')} variant="primary" size="sm" />
+                    <UrgencyChip level={item.urgency} size="sm" />
+                    <StatusChip status={item.status} size="sm" />
+                  </View>
+                  <Text style={styles.taskTitle}>{item.title}</Text>
+                  <Text style={styles.taskDesc}>{item.description}</Text>
+                  <View style={styles.taskMeta}>
+                    <View style={styles.taskMetaItem}>
+                      <Ionicons name="calendar-outline" size={14} color={colors.text.tertiary} />
+                      <Text style={styles.taskMetaText}>
+                        Due: {new Date(item.due_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.taskHint}>
+                {isResolved
+                  ? "✓ This task was automatically resolved with the complaint."
+                  : "⚠️ Resolving this complaint will also resolve this task."}
+              </Text>
+            </Card>
+          )}
 
-          {/* Store Info */}
-          <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Store</Text>
-            <View style={styles.storeRow}>
-              <Ionicons name="storefront" size={24} color={colors.primary[500]} />
-              <View style={styles.storeDetails}>
-                <Text style={styles.storeName}>{complaint.store.name}</Text>
-                <Text style={styles.storeAddress}>{complaint.store.address}</Text>
-                {complaint.store.phone && (
-                  <Text style={styles.storePhone}>{complaint.store.phone}</Text>
-                )}
-              </View>
-            </View>
-          </Card>
-
-          {/* Quick Actions - Only show if not resolved */}
+          {/* Quick Actions - Moved below task */}
           {!isResolved && (
             <Card style={styles.section}>
               <Text style={styles.sectionTitle}>Quick Actions</Text>
+              <Text style={styles.actionHint}>
+                Take action on this complaint to move it forward.
+              </Text>
+
               <View style={styles.actionsGrid}>
                 <ActionButton
                   label="Call Customer"
@@ -276,16 +333,8 @@ export const ComplaintDetailScreen: React.FC = () => {
                   disabled={!!loadingAction}
                   style={styles.actionButton}
                 />
-                <ActionButton
-                  label="Assign to Me"
-                  icon="person-add-outline"
-                  variant="assign"
-                  onPress={handleAssign}
-                  loading={loadingAction === 'assign'}
-                  disabled={!!loadingAction && loadingAction !== 'assign'}
-                  style={styles.actionButton}
-                />
               </View>
+
               <View style={styles.actionsGrid}>
                 {complaint.status === 'pending' && (
                   <ActionButton
@@ -312,23 +361,45 @@ export const ComplaintDetailScreen: React.FC = () => {
             </Card>
           )}
 
-          {/* QR Code Section */}
-          {complaint.qr_code && (
-            <Card style={styles.section}>
-              <Text style={styles.sectionTitle}>Complaint QR Code</Text>
-              <View style={styles.qrContainer}>
-                <Image
-                  source={{ uri: complaint.qr_code }}
-                  style={styles.qrImage}
-                  resizeMode="contain"
-                />
-                <Text style={styles.qrId}>{complaint._id}</Text>
-                <Text style={styles.qrHint}>
-                  Scan this code to quickly access this complaint
-                </Text>
+
+
+          {/* Customer Info */}
+          <Card style={styles.section}>
+            <Text style={styles.sectionTitle}>Customer</Text>
+            {complaint.customer ? (
+              <View style={styles.customerRow}>
+                <Avatar name={complaint.customer.name} size="lg" />
+                <View style={styles.customerDetails}>
+                  <Text style={styles.customerName}>{complaint.customer.name}</Text>
+                  <Text style={styles.customerContact}>{complaint.customer.phone}</Text>
+                  {complaint.customer.email && (
+                    <Text style={styles.customerContact}>{complaint.customer.email}</Text>
+                  )}
+                </View>
               </View>
-            </Card>
-          )}
+            ) : (
+              <Text style={styles.noDataText}>No customer details available</Text>
+            )}
+            <Text style={{ borderBottomWidth: 1, borderColor: colors.border.light, marginBottom: spacing.md }}></Text>
+
+            <Text style={styles.sectionTitle}>Store</Text>
+            {complaint.store ? (
+              <View style={styles.storeRow}>
+                <Ionicons name="storefront" size={24} color={colors.primary[500]} />
+                <View style={styles.storeDetails}>
+                  <Text style={styles.storeName}>{complaint.store.name}</Text>
+                  <Text style={styles.storeAddress}>{complaint.store.address}</Text>
+                  {complaint.store.phone && (
+                    <Text style={styles.storePhone}>{complaint.store.phone}</Text>
+                  )}
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.noDataText}>No store details available</Text>
+            )}
+          </Card>
+
+
 
           {/* Read-only actions for resolved complaints */}
           {isResolved && (
@@ -382,10 +453,10 @@ export const ComplaintDetailScreen: React.FC = () => {
               </View>
             )}
 
-            {complaint.notes.length === 0 && !showNoteInput ? (
+            {(!complaint.notes || complaint.notes.length === 0) && !showNoteInput ? (
               <Text style={styles.noNotes}>No notes yet</Text>
             ) : (
-              complaint.notes.map((note) => (
+              (complaint.notes || []).map((note) => (
                 <View key={note._id} style={styles.noteItem}>
                   <View style={styles.noteHeader}>
                     <Avatar name={note.user_name} size="xs" />
@@ -418,7 +489,7 @@ export const ComplaintDetailScreen: React.FC = () => {
         isLoading={isResolving}
         complaintType={complaint.complaint_type}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -431,6 +502,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.secondary,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   flex: {
     flex: 1,
@@ -556,6 +632,11 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     marginTop: 2,
   },
+  actionHint: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
+  },
   actionsGrid: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -605,29 +686,6 @@ const styles = StyleSheet.create({
     lineHeight: fontSizes.sm * 1.5,
     paddingLeft: spacing['2xl'] + spacing.sm,
   },
-  qrContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  qrImage: {
-    width: 180,
-    height: 180,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-  },
-  qrId: {
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.bold,
-    color: colors.text.primary,
-    marginBottom: spacing.xs,
-    letterSpacing: 1,
-  },
-  qrHint: {
-    fontSize: fontSizes.xs,
-    color: colors.text.muted,
-    textAlign: 'center',
-  },
   timestamps: {
     paddingTop: spacing.md,
     borderTopWidth: 1,
@@ -637,6 +695,85 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     color: colors.text.muted,
     marginBottom: spacing.xs,
+  },
+  summaryText: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    lineHeight: fontSizes.sm * 1.5,
+    marginBottom: spacing.sm,
+  },
+  callTimingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  timingText: {
+    fontSize: fontSizes.xs,
+    color: colors.text.tertiary,
+  },
+  recordingButton: {
+    alignSelf: 'flex-start',
+  },
+  taskCard: {
+    backgroundColor: colors.primary[50],
+    borderWidth: 2,
+    borderColor: colors.primary[200],
+  },
+  taskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  taskContent: {
+    // backgroundColor: colors.white,
+    borderRadius: borderRadius.md,
+    // padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  taskTagRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  taskTitle: {
+    fontSize: fontSizes.lg,
+    fontWeight: fontWeights.bold,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  taskDesc: {
+    fontSize: fontSizes.sm,
+    color: colors.text.secondary,
+    marginBottom: spacing.md,
+    lineHeight: fontSizes.sm * 1.5,
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    gap: spacing.lg,
+  },
+  taskMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  taskMetaText: {
+    fontSize: fontSizes.xs,
+    color: colors.text.tertiary,
+    fontWeight: fontWeights.medium,
+  },
+  taskHint: {
+    fontSize: fontSizes.xs,
+    color: colors.primary[700],
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  noDataText: {
+    fontSize: fontSizes.sm,
+    color: colors.text.muted,
+    fontStyle: 'italic',
   },
 });
 

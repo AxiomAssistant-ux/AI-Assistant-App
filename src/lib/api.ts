@@ -19,6 +19,7 @@ import {
   DashboardResponse,
   AnalyticsResponse,
   ResolveComplaintRequest,
+  ComplaintWithActions,
 } from './types';
 import * as mockServer from './mockServer';
 
@@ -181,44 +182,77 @@ export const api = {
     const data = response.data;
 
     return {
-      complaints: data.complaints.map(mapId),
-      action_items: data.action_items.map(mapId),
+      complaints: (data.complaints || []).map(item => ({
+        ...item,
+        complaint: mapId(item.complaint),
+        action_items: (item.action_items || []).map(mapId)
+      })),
     };
   },
 
   // ==========================================
   // COMPLAINTS
   // ==========================================
-  async getComplaints(filters?: ComplaintsFilter): Promise<PaginatedResponse<Complaint>> {
+  async getComplaints(filters?: ComplaintsFilter): Promise<PaginatedResponse<any>> {
     if (config.USE_MOCK) {
       return mockServer.mockGetComplaints(filters);
     }
-    const response = await axiosInstance.get<PaginatedResponse<Complaint>>('/mobile/complaints', {
-      params: filters,
+    // Convert page to skip for backend API
+    const params: Record<string, any> = { ...filters };
+    if (params.page !== undefined) {
+      params.skip = ((params.page - 1) * (params.limit || 10));
+      delete params.page;
+    }
+    const response = await axiosInstance.get<PaginatedResponse<any>>('/mobile/complaints', {
+      params,
     });
     const data = response.data;
     return {
       ...data,
-      data: data.data.map(mapId),
+      data: (data.data || []).map((item: any) => ({
+        ...item,
+        complaint: mapId(item.complaint),
+        action_items: (item.action_items || []).map(mapId),
+        action_items_count: item.action_items_count ?? 0,
+        urgent_count: item.urgent_count ?? 0,
+      })),
     };
   },
 
-  async getComplaint(id: string): Promise<Complaint> {
+  async getComplaint(id: string): Promise<ComplaintWithActions> {
     if (config.USE_MOCK) {
-      return mockServer.mockGetComplaint(id);
+      return mockServer.mockGetComplaint(id) as any;
     }
-    const response = await axiosInstance.get<Complaint>(`/mobile/complaints/${id}`);
-    return mapId(response.data);
+    const response = await axiosInstance.get<any>(`/mobile/complaints/${id}`);
+    const data = response.data;
+
+    // Support both wrapped and unwrapped (for robustness)
+    const result = data.complaint ? data : { complaint: data };
+
+    return {
+      complaint: mapId(result.complaint),
+      action_items: (result.action_items || []).map(mapId),
+      call_summary: result.call_summary,
+      action_items_count: result.action_items_count ?? (result.action_items?.length || 0),
+      urgent_count: result.urgent_count ?? 0
+    };
   },
 
-  async scanComplaint(complaintId: string): Promise<Complaint> {
+  async scanCall(callId: string): Promise<ComplaintWithActions> {
     if (config.USE_MOCK) {
-      return mockServer.mockGetComplaint(complaintId);
+      return mockServer.mockGetComplaint(callId) as any;
     }
-    const response = await axiosInstance.post<Complaint>('/mobile/complaints/scan', {
-      complaint_id: complaintId,
+    const response = await axiosInstance.post<any>('/mobile/complaints/scan', {
+      call_id: callId,
     });
-    return mapId(response.data);
+    const data = response.data;
+    return {
+      complaint: mapId(data.complaint),
+      action_items: (data.action_items || []).map(mapId),
+      call_summary: data.call_summary,
+      action_items_count: data.action_items_count ?? (data.action_items?.length || 0),
+      urgent_count: data.urgent_count ?? 0
+    };
   },
 
   async updateComplaint(id: string, data: UpdateComplaintRequest): Promise<Complaint> {
@@ -229,13 +263,7 @@ export const api = {
     return mapId(response.data);
   },
 
-  async assignComplaintToMe(id: string): Promise<Complaint> {
-    if (config.USE_MOCK) {
-      return mockServer.mockAssignComplaintToMe(id);
-    }
-    const response = await axiosInstance.post<Complaint>(`/mobile/complaints/${id}/mark-in-progress`);
-    return mapId(response.data);
-  },
+
 
   async addComplaintNote(id: string, data: AddNoteRequest): Promise<Complaint> {
     if (config.USE_MOCK) {
@@ -260,13 +288,19 @@ export const api = {
     if (config.USE_MOCK) {
       return mockServer.mockGetActionItems(filters);
     }
+    // Convert page to skip for backend API
+    const params: Record<string, any> = { ...filters };
+    if (params.page !== undefined) {
+      params.skip = ((params.page - 1) * (params.limit || 10));
+      delete params.page;
+    }
     const response = await axiosInstance.get<PaginatedResponse<ActionItem>>('/mobile/action-items', {
-      params: filters,
+      params,
     });
     const data = response.data;
     return {
       ...data,
-      data: data.data.map(mapId),
+      data: (data.data || []).map(mapId),
     };
   },
 
@@ -286,13 +320,34 @@ export const api = {
     return mapId(response.data);
   },
 
-  async assignActionItemToMe(id: string): Promise<ActionItem> {
-    if (config.USE_MOCK) {
-      return mockServer.mockAssignActionItemToMe(id);
+  // ==========================================
+  // FOLLOW-UPS
+  // ==========================================
+  async getFollowups(filters?: any): Promise<PaginatedResponse<ActionItem>> {
+    // Convert page to skip for backend API
+    const params: Record<string, any> = { ...filters };
+    if (params.page !== undefined) {
+      params.skip = ((params.page - 1) * (params.limit || 10));
+      delete params.page;
     }
-    const response = await axiosInstance.post<ActionItem>(`/mobile/action-items/${id}/assign-to-me`);
-    return mapId(response.data);
+    const response = await axiosInstance.get<PaginatedResponse<ActionItem>>('/mobile/followups', {
+      params,
+    });
+    const data = response.data;
+    return {
+      ...data,
+      data: (data.data || []).map(mapId),
+    };
   },
+
+  async resolveFollowup(id: string, notes?: string): Promise<{ message: string; status: string }> {
+    const response = await axiosInstance.post<any>(`/mobile/followups/${id}/resolve`, {
+      notes,
+    });
+    return response.data;
+  },
+
+
 
   // ==========================================
   // NOTIFICATIONS
@@ -302,7 +357,7 @@ export const api = {
       return mockServer.mockGetNotifications();
     }
     const response = await axiosInstance.get<Notification[]>('/notifications');
-    return response.data;
+    return (response.data || []).map(mapId);
   },
 
   async markNotificationRead(id: string): Promise<Notification> {
@@ -310,7 +365,7 @@ export const api = {
       return mockServer.mockMarkNotificationRead(id);
     }
     const response = await axiosInstance.patch<Notification>(`/notifications/${id}/read`);
-    return response.data;
+    return mapId(response.data);
   },
 
   async markAllNotificationsRead(): Promise<void> {
@@ -347,67 +402,24 @@ export const api = {
       return mockServer.mockGetDashboard();
     }
 
-    // Backend response structure
-    interface BackendDashboardResponse {
-      store_info: {
-        store_name: string;
-        store_number: string;
-        store_location: string;
-      };
-      today_calls: number;
-      date_range: {
-        start_date: string;
-        end_date: string;
-        days: number;
-      };
-      calls: {
-        total: number;
-        by_date: Record<string, number>;
-        by_hour: Record<number, number>;
-        peak_hour: number | null;
-      };
-      pending_counts: {
-        complaints: number;
-        urgent_actions: number;
-        overdue_actions: number;
-      };
-      resolution_stats: {
-        resolved_today: number;
-        avg_resolution_time_hours: number;
-      };
-    }
-
-    const response = await axiosInstance.get<BackendDashboardResponse>(
+    const response = await axiosInstance.get<DashboardResponse>(
       '/mobile/analytics/dashboard',
       { params: { days: 7 } }
     );
 
-    // Map backend response to frontend format
-    const data = response.data;
-    return {
-      storeName: data.store_info.store_name,
-      storeNumber: data.store_info.store_number,
-      todaysCalls: data.today_calls,
-      pendingComplaints: data.pending_counts.complaints,
-      urgentActionItems: data.pending_counts.urgent_actions,
-      overdueActionItems: data.pending_counts.overdue_actions,
-      totalCallsThisWeek: data.calls.total,
-      complaintsResolvedToday: data.resolution_stats.resolved_today,
-      avgResolutionTime: `${Math.round(data.resolution_stats.avg_resolution_time_hours)}h`,
-    };
+    return response.data;
   },
 
   // ==========================================
   // ANALYTICS
   // ==========================================
-  async getAnalytics(days: number = 30): Promise<AnalyticsResponse> {
+  async getAnalytics(range: string = 'month'): Promise<AnalyticsResponse> {
     if (config.USE_MOCK) {
       return mockServer.mockGetAnalytics();
     }
-    const response = await axiosInstance.get<AnalyticsResponse>(
-      '/mobile/analytics/full',
-      { params: { days } }
-    );
+    const response = await axiosInstance.get<AnalyticsResponse>('/mobile/analytics/full', {
+      params: { range_type: range }
+    });
     return response.data;
   },
 

@@ -12,8 +12,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onAuthChecked }) => 
 
   useEffect(() => {
     const checkAuthentication = async () => {
-      // Small delay for splash effect
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1200));
       const isAuthenticated = await checkAuth();
       onAuthChecked(isAuthenticated);
     };
@@ -23,13 +22,20 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onAuthChecked }) => 
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <View style={styles.logoCircle}>
-          <Text style={styles.logoText}>SR</Text>
-        </View>
-      </View>
-      <Text style={styles.appName}>Store Response</Text>
-      <Text style={styles.tagline}>Resolve issues instantly</Text>
+      {/* Logo */}
+      <Image
+        source={require('../../assets/splash.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+
+      {/* App Name */}
+      <Text style={styles.appName}>McDonald's Assistant</Text>
+
+      {/* Tagline */}
+      <Text style={styles.tagline}>Resolve customer issues faster</Text>
+
+      {/* Loader */}
       <ActivityIndicator
         size="large"
         color={colors.primary[500]}
@@ -45,41 +51,33 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: spacing.xl,
   },
-  logoContainer: {
+
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: spacing.xl,
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: colors.primary[600],
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.primary[600],
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: fontWeights.bold,
-    color: colors.white,
-  },
+
   appName: {
     fontSize: fontSizes['2xl'],
     fontWeight: fontWeights.bold,
     color: colors.text.primary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    textAlign: 'center',
   },
+
   tagline: {
-    fontSize: fontSizes.base,
+    fontSize: fontSizes.sm,
     color: colors.text.secondary,
     marginBottom: spacing['3xl'],
+    textAlign: 'center',
+    maxWidth: 260,
   },
+
   loader: {
-    marginTop: spacing.xl,
+    marginTop: spacing.lg,
   },
 });
 

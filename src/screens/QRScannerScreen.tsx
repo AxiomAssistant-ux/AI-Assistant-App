@@ -15,23 +15,28 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSizes, fontWeights, borderRadius } from '../theme';
 import { Button, Input } from '../components';
+import { ScannedComplaintModal } from '../components/ScannedComplaintModal';
+import { ComplaintWithActions } from '../lib/types';
+import { useAuthStore, showError, showSuccess } from '../stores';
 import { api } from '../lib/api';
-import { showError, showSuccess } from '../stores';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SCAN_AREA_SIZE = SCREEN_WIDTH * 0.7;
 
-// QR format: COMPLAINT-{id} or just the complaint ID
-const COMPLAINT_QR_REGEX = /^(?:COMPLAINT-)?([a-zA-Z0-9_-]+)$/;
+// QR format: CALL:{call_id} or just the call ID
+const CALL_QR_REGEX = /^(?:CALL:)?([a-zA-Z0-9]+)$/;
 
 export const QRScannerScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const { user } = useAuthStore();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualId, setManualId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [scannedData, setScannedData] = useState<ComplaintWithActions | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   const handleBarCodeScanned = useCallback(async (result: BarcodeScanningResult) => {
     if (scanned || isLoading) return;
@@ -40,59 +45,88 @@ export const QRScannerScreen: React.FC = () => {
     setScanned(true);
     setError(null);
 
-    await processComplaintId(data);
+    await processCallId(data);
   }, [scanned, isLoading]);
 
-  const processComplaintId = async (rawData: string) => {
+  const processCallId = async (rawData: string) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Validate QR format
-      const match = rawData.match(COMPLAINT_QR_REGEX);
-      if (!match) {
-        setError('Invalid QR code format. Please scan a valid complaint QR code.');
-        setIsLoading(false);
-        return;
+      // Validate QR format - keeping it simple
+      const match = rawData.match(CALL_QR_REGEX);
+      const callId = match ? match[1] : rawData;
+
+      // Scan the call (marks as updated on backend and returns full complaint data)
+      const result = await api.scanCall(callId);
+
+      if (!result || !result.complaint) {
+        throw new Error('Complaint not found');
       }
 
-      const complaintId = match[1];
-
-      // Fetch complaint to validate it exists and belongs to user's store
-      const complaint = await api.getComplaint(complaintId);
-
-      if (!complaint) {
-        setError('Complaint not found. Please check the QR code and try again.');
-        setIsLoading(false);
-        return;
+      // Store verification: Check if complaint belongs to this user's store
+      if (user?.store_location_id && result.complaint.store_location_id &&
+        result.complaint.store_location_id !== user.store_location_id) {
+        throw new Error('This record belongs to a different store');
       }
 
-      // Success - navigate to complaint detail
-      showSuccess('Complaint found');
-      navigation.replace('ComplaintDetail', { id: complaintId });
+      showSuccess('Complaint found!');
+
+      // Show modal with complaint data
+      setScannedData(result);
+      setShowModal(true);
+
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to fetch complaint';
-
-      if (message.includes('not found')) {
-        setError('Complaint not found. This complaint may not exist or belong to your store.');
-      } else if (message.includes('different store')) {
-        setError('This complaint belongs to a different store.');
-      } else {
-        setError(message);
-      }
+      const message = err instanceof Error ? err.message : 'Failed to process QR code';
+      setError(message);
+      showError(message);
+      setScanned(false); // Allow re-scanning on error
+    } finally {
       setIsLoading(false);
     }
   };
 
+  const handleViewDetails = () => {
+    if (scannedData) {
+      setShowModal(false);
+
+      const detailData = { ...scannedData };
+      // Reset state early to avoid any issues when returning
+      setScanned(false);
+      setScannedData(null);
+
+      // Navigate with a tiny delay to allow modal to start closing
+      // and avoid interaction issues between Modal and navigation
+      setTimeout(() => {
+        navigation.navigate('Complaints', {
+          screen: 'ComplaintDetail',
+          params: {
+            id: detailData.complaint._id,
+            initialData: detailData,
+          },
+        });
+      }, 50);
+    }
+  };
+
+  const handleModalClose = () => {
+    setShowModal(false);
+    // Allow scanning again after a short delay
+    setTimeout(() => {
+      setScanned(false);
+      setScannedData(null);
+    }, 500);
+  };
+
   const handleManualSubmit = async () => {
     if (!manualId.trim()) {
-      setError('Please enter a complaint ID');
+      setError('Please enter a Call ID');
       return;
     }
 
     setShowManualEntry(false);
     setScanned(true);
-    await processComplaintId(manualId.trim());
+    await processCallId(manualId.trim());
   };
 
   const handleRetry = () => {
@@ -127,7 +161,7 @@ export const QRScannerScreen: React.FC = () => {
           </View>
           <Text style={styles.permissionTitle}>Camera Access Required</Text>
           <Text style={styles.permissionText}>
-            To scan complaint QR codes, please allow camera access for this app.
+            To scan Call QR codes, please allow camera access for this app.
           </Text>
           <Button
             label="Grant Permission"
@@ -162,7 +196,7 @@ export const QRScannerScreen: React.FC = () => {
               <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
                 <Ionicons name="close" size={28} color={colors.white} />
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>Scan Complaint QR</Text>
+              <Text style={styles.headerTitle}>Scan Reference Code</Text>
               <View style={styles.headerPlaceholder} />
             </View>
           </SafeAreaView>
@@ -186,7 +220,7 @@ export const QRScannerScreen: React.FC = () => {
           {isLoading ? (
             <View style={styles.statusContainer}>
               <ActivityIndicator size="small" color={colors.white} />
-              <Text style={styles.statusText}>Looking up complaint...</Text>
+              <Text style={styles.statusText}>Looking up call record...</Text>
             </View>
           ) : error ? (
             <View style={styles.errorContainer}>
@@ -226,7 +260,7 @@ export const QRScannerScreen: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Enter Complaint ID</Text>
+              <Text style={styles.modalTitle}>Enter Reference ID</Text>
               <TouchableOpacity
                 onPress={() => setShowManualEntry(false)}
                 style={styles.modalCloseButton}
@@ -235,10 +269,10 @@ export const QRScannerScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalDescription}>
-              Enter the complaint ID manually if you cannot scan the QR code.
+              Enter the Call ID manually if you cannot scan the QR code.
             </Text>
             <Input
-              placeholder="e.g., COMP-12345"
+              placeholder="e.g., 65b..."
               value={manualId}
               onChangeText={setManualId}
               autoCapitalize="characters"
@@ -261,6 +295,14 @@ export const QRScannerScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Scanned Complaint Modal */}
+      <ScannedComplaintModal
+        visible={showModal}
+        data={scannedData}
+        onClose={handleModalClose}
+        onViewDetails={handleViewDetails}
+      />
     </View>
   );
 };

@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Store Response",
-    "slug": "store-response",
+    "name": "McDonald's Assistant",
+    "slug": "mcdonalds-assistant",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/splashh.png",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash.png",

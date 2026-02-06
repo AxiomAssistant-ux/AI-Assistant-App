@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RootNavigator } from './src/navigation';
 import { ToastContainer } from './src/components';
 import { useNotificationsStore, useUrgentStore } from './src/stores';
+import { usePushNotifications } from './src/hooks/usePushNotifications';
 
 // Ignore specific warnings that are common in Expo
 LogBox.ignoreLogs([
@@ -14,6 +15,9 @@ LogBox.ignoreLogs([
 export default function App() {
   const fetchNotifications = useNotificationsStore((state) => state.fetchNotifications);
   const fetchUrgent = useUrgentStore((state) => state.fetchUrgent);
+
+  // Initialize push notifications
+  usePushNotifications();
 
   // Pre-fetch data when app loads (if authenticated)
   useEffect(() => {

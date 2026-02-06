@@ -7,8 +7,8 @@ export type AuthStackParamList = {
 
 export type HomeStackParamList = {
   HomeMain: undefined;
-  ComplaintDetail: { id: string };
-  ActionItemDetail: { id: string };
+  ComplaintDetail: { id: string; initialData?: any };
+  FollowupDetail: { id: string };
   QRScanner: undefined;
   Notifications: undefined;
   Settings: undefined;
@@ -16,13 +16,13 @@ export type HomeStackParamList = {
 
 export type ComplaintsStackParamList = {
   ComplaintsList: { filterStatus?: string } | undefined;
-  ComplaintDetail: { id: string };
+  ComplaintDetail: { id: string; initialData?: any };
   QRScanner: undefined;
 };
 
-export type ActionItemsStackParamList = {
-  ActionItemsList: { filterUrgency?: string; filterOverdue?: boolean } | undefined;
-  ActionItemDetail: { id: string };
+export type FollowupsStackParamList = {
+  FollowupsList: { filterStatus?: string } | undefined;
+  FollowupDetail: { id: string };
 };
 
 export type AnalyticsStackParamList = {
@@ -33,24 +33,25 @@ export type AnalyticsStackParamList = {
 export type UrgentStackParamList = {
   UrgentHome: undefined;
   ComplaintDetail: { id: string };
-  ActionItemDetail: { id: string };
+  FollowupDetail: { id: string };
 };
 
 export type NotificationsStackParamList = {
   NotificationsList: undefined;
   ComplaintDetail: { id: string };
-  ActionItemDetail: { id: string };
+  FollowupDetail: { id: string };
 };
 
 export type SettingsStackParamList = {
   SettingsHome: undefined;
 };
 
-// Tab navigator - New order: Home, Complaints, Actions, Analytics
+// Tab navigator - New order: Home, Complaints, QRScanner, Actions, Analytics
 export type MainTabParamList = {
   Home: NavigatorScreenParams<HomeStackParamList>;
   Complaints: NavigatorScreenParams<ComplaintsStackParamList>;
-  Actions: NavigatorScreenParams<ActionItemsStackParamList>;
+  QRScanner: undefined;
+  Followups: NavigatorScreenParams<FollowupsStackParamList>;
   Analytics: NavigatorScreenParams<AnalyticsStackParamList>;
 };
 
@@ -62,6 +63,6 @@ export type RootStackParamList = {
 
 declare global {
   namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList {}
+    interface RootParamList extends RootStackParamList { }
   }
 }

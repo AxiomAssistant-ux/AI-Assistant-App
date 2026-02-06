@@ -5,3 +5,4 @@ export { useComplaintsStore } from './complaintsStore';
 export { useActionItemsStore } from './actionItemsStore';
 export { useNotificationsStore } from './notificationsStore';
 export { useHomeStore } from './homeStore';
+export { useFollowupsStore } from './followupsStore';

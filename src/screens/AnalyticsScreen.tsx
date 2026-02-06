@@ -31,11 +31,12 @@ interface AnalyticsData {
 
 export const AnalyticsScreen: React.FC = () => {
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [selectedRange, setSelectedRange] = useState<'day' | 'week' | 'month' | 'year'>('month');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async (refresh = false) => {
+  const fetchAnalytics = async (refresh = false, range = selectedRange) => {
     if (refresh) {
       setIsRefreshing(true);
     } else {
@@ -44,7 +45,7 @@ export const AnalyticsScreen: React.FC = () => {
     setError(null);
 
     try {
-      const response = await api.getAnalytics();
+      const response = await api.getAnalytics(range);
       setData(response);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load analytics';
@@ -57,7 +58,7 @@ export const AnalyticsScreen: React.FC = () => {
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [selectedRange]);
 
   const handleRefresh = useCallback(() => {
     fetchAnalytics(true);
@@ -65,8 +66,26 @@ export const AnalyticsScreen: React.FC = () => {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Analytics</Text>
-      <Text style={styles.headerSubtitle}>Store Performance Overview</Text>
+      <View>
+        <Text style={styles.headerTitle}>Analytics</Text>
+        <Text style={styles.headerSubtitle}>Store Performance Overview</Text>
+      </View>
+
+      {/* Range Selector */}
+      <View style={styles.rangeSelector}>
+        {(['day', 'week', 'month', 'year'] as const).map((range) => (
+          <Text
+            key={range}
+            style={[
+              styles.rangeTab,
+              selectedRange === range && styles.rangeTabActive
+            ]}
+            onPress={() => setSelectedRange(range)}
+          >
+            {range.charAt(0).toUpperCase() + range.slice(1)}
+          </Text>
+        ))}
+      </View>
     </View>
   );
 
@@ -198,7 +217,11 @@ export const AnalyticsScreen: React.FC = () => {
                   ]}
                 />
                 <Text style={styles.barLabel}>
-                  {new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}
+                  {selectedRange === 'year'
+                    ? new Date(item.date).toLocaleDateString('en-US', { month: 'short' })
+                    : selectedRange === 'day'
+                      ? new Date(item.date).getHours() + 'h'
+                      : new Date(item.date).toLocaleDateString('en-US', { weekday: 'short' }).charAt(0)}
                 </Text>
               </View>
             ))}
@@ -369,12 +392,35 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: spacing.xl,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   headerTitle: {
     fontSize: fontSizes['2xl'],
     fontWeight: fontWeights.bold,
     color: colors.text.primary,
     marginBottom: spacing.xs,
+  },
+  rangeSelector: {
+    flexDirection: 'row',
+    backgroundColor: colors.gray[100],
+    borderRadius: borderRadius.md,
+    padding: 4,
+  },
+  rangeTab: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    fontSize: fontSizes.xs,
+    color: colors.text.secondary,
+    borderRadius: borderRadius.sm,
+    overflow: 'hidden',
+  },
+  rangeTabActive: {
+    backgroundColor: colors.white,
+    color: colors.primary[600],
+    fontWeight: fontWeights.bold,
+    ...cardShadow,
   },
   headerSubtitle: {
     fontSize: fontSizes.sm,

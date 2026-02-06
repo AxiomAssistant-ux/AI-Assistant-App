@@ -3,7 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   UrgentScreen,
   ComplaintDetailScreen,
-  ActionItemDetailScreen,
+  FollowupDetailScreen,
 } from '../screens';
 import { UrgentStackParamList } from './types';
 
@@ -18,7 +18,7 @@ export const UrgentStack: React.FC = () => {
     >
       <Stack.Screen name="UrgentHome" component={UrgentScreen} />
       <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} />
-      <Stack.Screen name="ActionItemDetail" component={ActionItemDetailScreen} />
+      <Stack.Screen name="FollowupDetail" component={FollowupDetailScreen} />
     </Stack.Navigator>
   );
 };

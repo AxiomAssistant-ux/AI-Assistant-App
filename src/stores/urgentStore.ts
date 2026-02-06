@@ -1,10 +1,9 @@
 import { create } from 'zustand';
-import { Complaint, ActionItem, UrgentItem } from '../lib/types';
+import { Complaint, ActionItem, UrgentItem, ComplaintWithActions } from '../lib/types';
 import { api } from '../lib/api';
 
 interface UrgentState {
-  complaints: Complaint[];
-  actionItems: ActionItem[];
+  complaints: ComplaintWithActions[];
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -16,28 +15,23 @@ interface UrgentState {
   // Actions
   fetchUrgent: () => Promise<void>;
   refreshUrgent: () => Promise<void>;
-  updateComplaintOptimistic: (complaint: Complaint) => void;
-  updateActionItemOptimistic: (actionItem: ActionItem) => void;
+  updateComplaintOptimistic: (data: ComplaintWithActions) => void;
 }
 
 export const useUrgentStore = create<UrgentState>((set, get) => ({
   complaints: [],
-  actionItems: [],
   isLoading: false,
   isRefreshing: false,
   error: null,
 
   getUrgentItems: () => {
-    const { complaints, actionItems } = get();
-    const items: UrgentItem[] = [
-      ...complaints.map((c) => ({ type: 'complaint' as const, item: c })),
-      ...actionItems.map((a) => ({ type: 'action_item' as const, item: a })),
-    ];
+    const { complaints } = get();
+    const items: UrgentItem[] = complaints.map((c) => ({ type: 'complaint' as const, item: c }));
 
     // Sort by created_at descending (most recent first)
     items.sort((a, b) => {
-      const dateA = new Date(a.item.created_at).getTime();
-      const dateB = new Date(b.item.created_at).getTime();
+      const dateA = new Date(a.item.complaint.created_at).getTime();
+      const dateB = new Date(b.item.complaint.created_at).getTime();
       return dateB - dateA;
     });
 
@@ -45,8 +39,8 @@ export const useUrgentStore = create<UrgentState>((set, get) => ({
   },
 
   getUrgentCount: () => {
-    const { complaints, actionItems } = get();
-    return complaints.length + actionItems.length;
+    const { complaints } = get();
+    return complaints.length;
   },
 
   fetchUrgent: async () => {
@@ -56,7 +50,6 @@ export const useUrgentStore = create<UrgentState>((set, get) => ({
       const response = await api.getUrgent();
       set({
         complaints: response.complaints,
-        actionItems: response.action_items,
         isLoading: false,
       });
     } catch (error) {
@@ -72,7 +65,6 @@ export const useUrgentStore = create<UrgentState>((set, get) => ({
       const response = await api.getUrgent();
       set({
         complaints: response.complaints,
-        actionItems: response.action_items,
         isRefreshing: false,
       });
     } catch (error) {
@@ -80,55 +72,31 @@ export const useUrgentStore = create<UrgentState>((set, get) => ({
     }
   },
 
-  updateComplaintOptimistic: (complaint: Complaint) => {
+  updateComplaintOptimistic: (data: ComplaintWithActions) => {
     set((state) => {
       // Check if still urgent
+      const { complaint, action_items, urgent_count } = data;
       const isUrgent =
-        (complaint.complaint_severity === 'high' || complaint.complaint_severity === 'critical') &&
+        (complaint.complaint_severity === 'high' ||
+          complaint.complaint_severity === 'critical' ||
+          (urgent_count || 0) > 0) &&
         (complaint.status === 'pending' || complaint.status === 'in_progress');
 
       if (isUrgent) {
         // Update existing or add
-        const exists = state.complaints.find((c) => c._id === complaint._id);
+        const exists = state.complaints.find((c) => c.complaint._id === complaint._id);
         if (exists) {
           return {
             complaints: state.complaints.map((c) =>
-              c._id === complaint._id ? complaint : c
+              c.complaint._id === complaint._id ? data : c
             ),
           };
         }
-        return { complaints: [...state.complaints, complaint] };
+        return { complaints: [...state.complaints, data] };
       } else {
         // Remove from urgent
         return {
-          complaints: state.complaints.filter((c) => c._id !== complaint._id),
-        };
-      }
-    });
-  },
-
-  updateActionItemOptimistic: (actionItem: ActionItem) => {
-    set((state) => {
-      // Check if still urgent
-      const isUrgent =
-        (actionItem.urgency === 'high' || actionItem.urgency === 'critical') &&
-        (actionItem.status === 'pending' || actionItem.status === 'in_progress');
-
-      if (isUrgent) {
-        // Update existing or add
-        const exists = state.actionItems.find((a) => a._id === actionItem._id);
-        if (exists) {
-          return {
-            actionItems: state.actionItems.map((a) =>
-              a._id === actionItem._id ? actionItem : a
-            ),
-          };
-        }
-        return { actionItems: [...state.actionItems, actionItem] };
-      } else {
-        // Remove from urgent
-        return {
-          actionItems: state.actionItems.filter((a) => a._id !== actionItem._id),
+          complaints: state.complaints.filter((c) => c.complaint._id !== complaint._id),
         };
       }
     });
