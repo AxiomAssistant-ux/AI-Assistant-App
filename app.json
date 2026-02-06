@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "McDonald's Assistant",
-    "slug": "mcdonalds-assistant",
+    "slug": "store-response",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/splashh.png",
@@ -40,6 +40,7 @@
       "eas": {
         "projectId": "06004927-9da0-4ee2-8274-8185f1871a24"
       }
-    }
+    },
+    "owner": "muneebkhan043"
   }
 }
