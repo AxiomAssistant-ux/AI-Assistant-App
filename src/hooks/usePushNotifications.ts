@@ -12,14 +12,16 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
     }),
 });
 
 export const usePushNotifications = () => {
     const [expoPushToken, setExpoPushToken] = useState<string | undefined>();
     const [notification, setNotification] = useState<Notifications.Notification | undefined>();
-    const notificationListener = useRef<Notifications.Subscription>();
-    const responseListener = useRef<Notifications.Subscription>();
+    const notificationListener = useRef<Notifications.Subscription>(undefined);
+    const responseListener = useRef<Notifications.Subscription>(undefined);
     const user = useAuthStore((state) => state.user);
 
     useEffect(() => {
@@ -45,12 +47,8 @@ export const usePushNotifications = () => {
         });
 
         return () => {
-            if (notificationListener.current) {
-                Notifications.removeNotificationSubscription(notificationListener.current);
-            }
-            if (responseListener.current) {
-                Notifications.removeNotificationSubscription(responseListener.current);
-            }
+            notificationListener.current?.remove();
+            responseListener.current?.remove();
         };
     }, [user]);
 
